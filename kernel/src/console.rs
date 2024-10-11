@@ -55,7 +55,7 @@ impl Console {
         let character_width = get_raster_width(FontWeight::Regular, SIZE);
 
         let x = col * character_width;
-        let y = SIZE.val() * (row);
+        let y = SIZE.val() * row;
 
         let raster = get_raster(self.characters[row][col] as char, FontWeight::Regular, SIZE)
             .unwrap()
