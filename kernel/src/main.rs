@@ -1,7 +1,10 @@
 #![no_std]
 #![no_main]
+mod console;
+
 
 use core::panic::PanicInfo;
+use crate::console::CONSOLE;
 
 /// This function is called on panic.
 #[panic_handler]
@@ -12,17 +15,12 @@ fn panic(_info: &PanicInfo) -> ! {
 
 bootloader_api::entry_point!(kernel_main);
 fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
-    let mut framebuffer = boot_info.framebuffer.take().unwrap();
-    let info = framebuffer.info().clone();
-    let mut buffer = framebuffer.buffer_mut();
+    let framebuffer = boot_info.framebuffer.as_mut().unwrap();
+    console::init(framebuffer);
 
-    for y in 0..info.height {
-        for x in 0..info.width {
-            buffer[(y * info.stride + x) * info.bytes_per_pixel] = ((x as f32 / info.width as f32) * 255f32) as u8; // blue
-            buffer[(y * info.stride + x) * info.bytes_per_pixel + 1] = ((y as f32 / info.height as f32) * 255f32) as u8; // green
-            buffer[(y * info.stride + x) * info.bytes_per_pixel + 2] = 128; // red
-        }
-    }
+    let console = &mut *CONSOLE.get().unwrap().lock();
+
+    console.write("Hello, World!".as_bytes());
 
     loop {}
 }
