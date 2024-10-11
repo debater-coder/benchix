@@ -1,3 +1,4 @@
+use core::fmt;
 use conquer_once::spin::OnceCell;
 use bootloader_api::info::FrameBufferInfo;
 use noto_sans_mono_bitmap::{get_raster, get_raster_width, FontWeight, RasterHeight};
@@ -101,6 +102,13 @@ impl Console {
     }
 }
 
+impl fmt::Write for Console {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        self.write(s.as_bytes());
+        Ok(())
+    }
+}
+
 pub fn init(framebuffer: &'static mut bootloader_api::info::FrameBuffer) {
     CONSOLE.init_once(|| {
         Mutex::new({
@@ -117,4 +125,21 @@ pub fn init(framebuffer: &'static mut bootloader_api::info::FrameBuffer) {
             console
         })
     });
+}
+
+#[macro_export]
+macro_rules! kprint {
+    ($($arg:tt)*) => ($crate::console::_print(format_args!($($arg)*)));
+}
+
+#[macro_export]
+macro_rules! kprintln {
+    () => ($crate::print!("\n"));
+    ($($arg:tt)*) => ($crate::kprint!("{}\n", format_args!($($arg)*)));
+}
+
+#[doc(hidden)]
+pub fn _print(args: fmt::Arguments) {
+    use core::fmt::Write;
+    CONSOLE.get().unwrap().lock().write_fmt(args).unwrap();
 }
