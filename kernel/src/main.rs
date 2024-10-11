@@ -1,8 +1,10 @@
+#![feature(abi_x86_interrupt)]
 #![no_std]
 #![no_main]
 mod console;
+mod interrupts;
+mod gdt;
 
-use core::fmt::Write;
 use core::panic::PanicInfo;
 use crate::console::CONSOLE;
 
@@ -15,14 +17,24 @@ fn panic(_info: &PanicInfo) -> ! {
     loop {}
 }
 
+#[allow(unconditional_recursion)]
+fn stack_overflow() {
+    stack_overflow(); // for each recursion, the return address is pushed
+}
+
 
 bootloader_api::entry_point!(kernel_main);
 fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     let framebuffer = boot_info.framebuffer.as_mut().unwrap();
     console::init(framebuffer);
 
-    for i in 1..=24 {
-        kprintln!("Hello, World {i}");
-    }
+    kprintln!("benchix kernel is booting\n");
+
+    kprint!("Loading GDT and IDT... ");
+    gdt::init();
+    interrupts::init_idt();
+    kprintln!("done.");
+
+    kprintln!("Boot complete!");
     loop {}
 }
