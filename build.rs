@@ -11,7 +11,6 @@ fn main() {
     let uefi_path = out_dir.join("uefi.img");
     bootloader::UefiBoot::new(&kernel).create_disk_image(&uefi_path).unwrap();
 
-
     // pass the disk image paths as env variables to the `main.rs`
     println!("cargo:rustc-env=UEFI_PATH={}", uefi_path.display());
 }
