@@ -1,14 +1,10 @@
 use core::fmt;
-use conquer_once::spin::OnceCell;
-use bootloader_api::info::FrameBufferInfo;
+use bootloader_api::info::{FrameBuffer, FrameBufferInfo};
 use noto_sans_mono_bitmap::{get_raster, get_raster_width, FontWeight, RasterHeight};
-use spin::Mutex;
 
 const COLS: usize = 80;
 const ROWS: usize = 24;
 const SIZE: RasterHeight = RasterHeight::Size32;
-
-pub static CONSOLE: OnceCell<Mutex<Console>> = OnceCell::uninit();
 
 /// Internal struct used by console to store framebuffer
 struct Framebuffer {
@@ -24,6 +20,20 @@ pub struct Console {
 }
 
 impl Console {
+    pub fn new(framebuffer: &'static mut FrameBuffer) -> Self {
+        let mut console = Console {
+            characters: [[b' '; COLS]; ROWS],
+            framebuffer: Framebuffer {
+                framebuffer_info: framebuffer.info().clone(),
+                raw_framebuffer: framebuffer.buffer_mut(),
+            },
+            row: 0,
+            col: 0,
+        };
+        console.full_redraw();
+        console
+    }
+
     pub fn read(&mut self, _buf: &[u8]) -> usize {
         unimplemented!()
     }
@@ -109,37 +119,13 @@ impl fmt::Write for Console {
     }
 }
 
-pub fn init(framebuffer: &'static mut bootloader_api::info::FrameBuffer) {
-    CONSOLE.init_once(|| {
-        Mutex::new({
-            let mut console = Console {
-                characters: [[b' '; COLS]; ROWS],
-                framebuffer: Framebuffer {
-                    framebuffer_info: framebuffer.info().clone(),
-                    raw_framebuffer: framebuffer.buffer_mut(),
-                },
-                row: 0,
-                col: 0,
-            };
-            console.full_redraw();
-            console
-        })
-    });
+#[macro_export]
+macro_rules! boot_print {
+    ($console:expr, $($arg:tt)*) => (<Console as core::fmt::Write>::write_fmt($console, format_args!($($arg)*)));
 }
 
 #[macro_export]
-macro_rules! kprint {
-    ($($arg:tt)*) => ($crate::console::_print(format_args!($($arg)*)));
-}
-
-#[macro_export]
-macro_rules! kprintln {
-    () => ($crate::print!("\n"));
-    ($($arg:tt)*) => ($crate::kprint!("{}\n", format_args!($($arg)*)));
-}
-
-#[doc(hidden)]
-pub fn _print(args: fmt::Arguments) {
-    use core::fmt::Write;
-    CONSOLE.get().unwrap().lock().write_fmt(args).unwrap();
+macro_rules! boot_println {
+    ($console:expr) => ($crate::boot_print!($console, "\n"));
+    ($console:expr, $($arg:tt)*) => ($crate::boot_print!($console, "{}\n", format_args!($($arg)*)));
 }
