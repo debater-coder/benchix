@@ -6,7 +6,9 @@ mod interrupts;
 mod gdt;
 
 use core::panic::PanicInfo;
-use bootloader_api::info::FrameBuffer;
+use bootloader_api::BootloaderConfig;
+use bootloader_api::config::Mapping;
+use bootloader_api::info::{FrameBuffer, MemoryRegionKind};
 use crate::console::{Console};
 
 static mut PANIC_FRAMEBUFFER: Option<*mut FrameBuffer> = None;
@@ -27,8 +29,14 @@ fn panic(_info: &PanicInfo) -> ! {
     loop {}
 }
 
+pub static BOOTLOADER_CONFIG: BootloaderConfig = {
+    let mut config = BootloaderConfig::new_default();
+    config.mappings.page_table_recursive = Some(Mapping::Dynamic);
+    config
+};
 
-bootloader_api::entry_point!(kernel_main);
+
+bootloader_api::entry_point!(kernel_main, config = &BOOTLOADER_CONFIG);
 fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     let framebuffer = boot_info.framebuffer.as_mut().unwrap();
     unsafe { PANIC_FRAMEBUFFER = Some(&raw mut *framebuffer) }
@@ -42,9 +50,12 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     boot_println!(&mut console, "done.");
 
     // set up memory
-    boot_println!(&mut console, "{:?}", boot_info.physical_memory_offset);
+    boot_println!(&mut console, "{:?}", boot_info.recursive_index);
 
-    unsafe {*(0xdeadbeef as *const i32)};
+    let memory_regions = boot_info.memory_regions.as_mut().iter().filter(|region| region.kind == MemoryRegionKind::Usable);
+    for region in memory_regions {
+        boot_println!(&mut console, "{:x?}", region);
+    }
 
     boot_println!(&mut console, "Boot complete!");
     loop {}
