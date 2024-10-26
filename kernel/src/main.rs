@@ -1,15 +1,19 @@
 #![feature(abi_x86_interrupt)]
 #![no_std]
 #![no_main]
+extern crate alloc;
+
 mod console;
 mod interrupts;
 mod gdt;
+mod memory;
 
-use core::panic::PanicInfo;
-use bootloader_api::BootloaderConfig;
+use crate::console::Console;
 use bootloader_api::config::Mapping;
-use bootloader_api::info::{FrameBuffer, MemoryRegionKind};
-use crate::console::{Console};
+use bootloader_api::info::FrameBuffer;
+use bootloader_api::BootloaderConfig;
+use core::panic::PanicInfo;
+use x86_64::structures::paging::PageTableIndex;
 
 static mut PANIC_FRAMEBUFFER: Option<*mut FrameBuffer> = None;
 /// This function is called on panic.
@@ -49,13 +53,10 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     interrupts::init_idt();
     boot_println!(&mut console, "done.");
 
-    // set up memory
-    boot_println!(&mut console, "{:?}", boot_info.recursive_index);
-
-    let memory_regions = boot_info.memory_regions.as_mut().iter().filter(|region| region.kind == MemoryRegionKind::Usable);
-    for region in memory_regions {
-        boot_println!(&mut console, "{:x?}", region);
-    }
+    boot_print!(&mut console, "Initialising memory management... ");
+    let recursive_index = boot_info.recursive_index.into_option().expect("Expected recursive index");
+    let (mapper, frame_allocator) = unsafe { memory::init(PageTableIndex::new(recursive_index), &boot_info.memory_regions) };
+    boot_println!(&mut console, "done.");
 
     boot_println!(&mut console, "Boot complete!");
     loop {}
