@@ -1,7 +1,6 @@
 use core::fmt;
 use bootloader_api::info::{FrameBuffer, FrameBufferInfo};
 use noto_sans_mono_bitmap::{get_raster, get_raster_width, FontWeight, RasterHeight};
-use x86_64::structures::idt::ExceptionVector::Page;
 
 const SIZE: RasterHeight = RasterHeight::Size32;
 
@@ -72,6 +71,14 @@ impl<'a> Console<'a> {
                 self.update_character(row, col);
             }
         }
+    }
+
+    pub fn char_width() -> usize {
+        get_raster_width(FontWeight::Regular, SIZE)
+    }
+
+    pub fn char_height() -> usize {
+        SIZE.val()
     }
 
     fn update_character(&mut self, row: usize, col: usize) {

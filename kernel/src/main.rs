@@ -8,6 +8,7 @@ mod interrupts;
 mod gdt;
 mod memory;
 
+use alloc::vec;
 use crate::console::Console;
 use bootloader_api::config::Mapping;
 use bootloader_api::info::FrameBuffer;
@@ -51,21 +52,23 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     let framebuffer = boot_info.framebuffer.as_mut().unwrap();
     unsafe { PANIC_FRAMEBUFFER = Some(&raw mut *framebuffer) }
 
-    let mut characters = [b' '; 80 * 24];
-
-    let mut console = Console::new(framebuffer, characters.as_mut(), 24, 80);
-
-    boot_println!(&mut console, "benchix kernel is booting\n");
-
-    boot_print!(&mut console, "Loading GDT and IDT... ");
     gdt::init();
     interrupts::init_idt();
-    boot_println!(&mut console, "done.");
 
-    boot_print!(&mut console, "Initialising memory management... ");
     let recursive_index = boot_info.recursive_index.into_option().expect("Expected recursive index");
     let (mapper, frame_allocator) = unsafe { memory::init(PageTableIndex::new(recursive_index), &boot_info.memory_regions) };
-    boot_println!(&mut console, "done.");
+
+    let (rows, cols) = (framebuffer.info().height / Console::char_height(), framebuffer.info().width / Console::char_width());
+
+    let mut characters = vec![b' '; rows * cols].into_boxed_slice();
+
+    let mut console= Console::new(framebuffer, characters.as_mut(), rows, cols);
+
+    for i in 0..=100 {
+        boot_print!(&mut console, "{}", i);
+    }
+
+    boot_println!(&mut console);
 
     boot_println!(&mut console, "Boot complete!");
     loop {}
