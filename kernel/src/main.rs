@@ -26,7 +26,13 @@ static mut PANIC_FRAMEBUFFER: Option<*mut FrameBuffer> = None;
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> ! {
     if let Some(framebuffer) = unsafe { PANIC_FRAMEBUFFER } {
-        let mut console = Console::new(unsafe { &mut *framebuffer });
+        let mut characters = [b' '; 80 * 24];
+        let mut console = Console::new(
+            unsafe { &mut *framebuffer },
+            characters.as_mut(),
+            24,
+            80
+        );
             boot_println!(&mut console, "panicked: {}", _info);
     }
 
@@ -44,7 +50,10 @@ bootloader_api::entry_point!(kernel_main, config = &BOOTLOADER_CONFIG);
 fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     let framebuffer = boot_info.framebuffer.as_mut().unwrap();
     unsafe { PANIC_FRAMEBUFFER = Some(&raw mut *framebuffer) }
-    let mut console = Console::new(framebuffer);
+
+    let mut characters = [b' '; 80 * 24];
+
+    let mut console = Console::new(framebuffer, characters.as_mut(), 24, 80);
 
     boot_println!(&mut console, "benchix kernel is booting\n");
 

@@ -1,9 +1,8 @@
 use core::fmt;
 use bootloader_api::info::{FrameBuffer, FrameBufferInfo};
 use noto_sans_mono_bitmap::{get_raster, get_raster_width, FontWeight, RasterHeight};
+use x86_64::structures::idt::ExceptionVector::Page;
 
-const COLS: usize = 80;
-const ROWS: usize = 24;
 const SIZE: RasterHeight = RasterHeight::Size32;
 
 /// Internal struct used by console to store framebuffer
@@ -12,17 +11,24 @@ struct Framebuffer {
     raw_framebuffer: &'static mut [u8],
 }
 
-pub struct Console {
-    characters: [[u8; COLS]; ROWS],
+pub struct Console<'a> {
+    characters: &'a mut [u8],
     framebuffer: Framebuffer,
     row: usize,
-    col: usize
+    col: usize,
+    rows: usize,
+    cols: usize,
+    offset: usize
 }
 
-impl Console {
-    pub fn new(framebuffer: &'static mut FrameBuffer) -> Self {
+impl<'a> Console<'a> {
+    pub fn new(framebuffer: &'static mut FrameBuffer, character_buffer: &'a mut [u8], rows: usize, cols: usize) -> Self {
+        assert_eq!(rows * cols, character_buffer.len());
         let mut console = Console {
-            characters: [[b' '; COLS]; ROWS],
+            rows,
+            cols,
+            offset: 0,
+            characters: character_buffer,
             framebuffer: Framebuffer {
                 framebuffer_info: framebuffer.info().clone(),
                 raw_framebuffer: framebuffer.buffer_mut(),
@@ -34,28 +40,35 @@ impl Console {
         console
     }
 
+    fn char_mut(&mut self, row: usize, col: usize) -> &mut u8 {
+        &mut self.characters[(row * self.cols + col + self.offset) % (self.rows * self.cols)]
+    }
+
+    fn char_ref(&self, row: usize, col: usize) -> &u8 {
+        &self.characters[(row * self.cols + col + self.offset) % (self.rows * self.cols)]
+    }
+
     pub fn read(&mut self, _buf: &[u8]) -> usize {
         unimplemented!()
     }
 
     fn newline(&mut self) {
-        self.col = 0;
-        if self.row == ROWS - 1 {
-            for row_idx in 0..ROWS-1 {
-                let next_row = &self.characters[row_idx + 1].clone();
-                // Fill row with contents of row below
-                self.characters[row_idx].copy_from_slice(next_row);
+        if self.row >= (self.rows - 1) {
+            self.offset = (self.offset + self.cols) % (self.rows * self.cols); // Scroll down
+            // Clear last row
+            for x in 0..self.cols {
+                *self.char_mut(self.rows - 1, x) = b' ';
             }
-            self.characters[ROWS - 1].fill(b' '); // Clear last row
             self.full_redraw();
         } else {
             self.row += 1;
         }
+        self.col = 0;
     }
 
     fn full_redraw(&mut self) {
-        for row in 0..ROWS {
-            for col in 0..COLS {
+        for row in 0..self.rows {
+            for col in 0..self.cols {
                 self.update_character(row, col);
             }
         }
@@ -67,7 +80,7 @@ impl Console {
         let x = col * character_width;
         let y = SIZE.val() * row;
 
-        let raster = get_raster(self.characters[row][col] as char, FontWeight::Regular, SIZE)
+        let raster = get_raster(*self.char_ref(row, col) as char, FontWeight::Regular, SIZE)
             .unwrap()
             .raster();
 
@@ -89,17 +102,17 @@ impl Console {
             match byte {
                 b'\x08' => {
                     self.col -= 1;
-                    self.characters[self.row][self.col] = b' ';
+                    *self.char_mut(self.row, self.col) = b' ';
                     self.update_character(self.row, self.col);
                 }
                 b'\n' => {
                     self.newline();
                 }
                 _ => {
-                    self.characters[self.row][self.col] = *byte;
+                    *self.char_mut(self.row, self.col) = *byte;
                     self.update_character(self.row, self.col);
 
-                    if self.col == COLS - 1 {
+                    if self.col == self.cols - 1 {
                         self.newline()
                     } else {
                         self.col += 1;
@@ -112,7 +125,7 @@ impl Console {
     }
 }
 
-impl fmt::Write for Console {
+impl fmt::Write for Console<'_> {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         self.write(s.as_bytes());
         Ok(())
