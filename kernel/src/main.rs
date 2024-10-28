@@ -1,16 +1,16 @@
 #![feature(abi_x86_interrupt)]
 #![no_std]
 #![no_main]
-use core::fmt::Write;
 extern crate alloc;
+use core::fmt::Write;
 
 mod console;
 mod interrupts;
 mod gdt;
 mod memory;
 
-use alloc::{fmt, vec};
 use crate::console::Console;
+use alloc::fmt;
 use bootloader_api::config::Mapping;
 use bootloader_api::info::{FrameBuffer, FrameBufferInfo};
 use bootloader_api::BootloaderConfig;
@@ -89,7 +89,7 @@ static mut PANIC_FRAMEBUFFER: Option<*mut FrameBuffer> = None;
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     if let Some(framebuffer) = unsafe { PANIC_FRAMEBUFFER } {
-        let mut framebuffer = unsafe {&mut *framebuffer };
+        let framebuffer = unsafe {&mut *framebuffer };
 
         {
             let (info, buffer) = (framebuffer.info().clone(), framebuffer.buffer_mut());
@@ -134,11 +134,7 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     let recursive_index = boot_info.recursive_index.into_option().expect("Expected recursive index");
     let (mapper, frame_allocator) = unsafe { memory::init(PageTableIndex::new(recursive_index), &boot_info.memory_regions) };
 
-    let (rows, cols) = (framebuffer.info().height / Console::char_height(), framebuffer.info().width / Console::char_width());
-
-    let mut characters = vec![b' '; rows * cols].into_boxed_slice();
-
-    let mut console= Console::new(framebuffer, characters.as_mut(), rows, cols);
+    let mut console= Console::new(framebuffer);
 
     for i in 0..=100 {
         boot_print!(&mut console, "{}", i);

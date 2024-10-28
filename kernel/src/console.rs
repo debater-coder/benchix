@@ -1,3 +1,5 @@
+use alloc::vec;
+use alloc::vec::Vec;
 use core::fmt;
 use bootloader_api::info::{FrameBuffer, FrameBufferInfo};
 use noto_sans_mono_bitmap::{get_raster, get_raster_width, FontWeight, RasterHeight};
@@ -10,8 +12,8 @@ struct Framebuffer {
     raw_framebuffer: &'static mut [u8],
 }
 
-pub struct Console<'a> {
-    characters: &'a mut [u8],
+pub struct Console {
+    characters: Vec<u8>,
     framebuffer: Framebuffer,
     row: usize,
     col: usize,
@@ -20,18 +22,20 @@ pub struct Console<'a> {
     offset: usize
 }
 
-impl<'a> Console<'a> {
-    pub fn new(framebuffer: &'static mut FrameBuffer, character_buffer: &'a mut [u8], rows: usize, cols: usize) -> Self {
-        assert_eq!(rows * cols, character_buffer.len());
+impl Console {
+    pub fn new(framebuffer: &'static mut FrameBuffer) -> Self {
+        let framebuffer = Framebuffer {
+            framebuffer_info: framebuffer.info().clone(),
+            raw_framebuffer: framebuffer.buffer_mut(),
+        };
+        let (width, height) = (framebuffer.framebuffer_info.width, framebuffer.framebuffer_info.height);
+        let (rows, cols) = (height / Self::char_height(), width / Self::char_width());
         let mut console = Console {
             rows,
             cols,
             offset: 0,
-            characters: character_buffer,
-            framebuffer: Framebuffer {
-                framebuffer_info: framebuffer.info().clone(),
-                raw_framebuffer: framebuffer.buffer_mut(),
-            },
+            characters: vec![b' '; rows * cols],
+            framebuffer,
             row: 0,
             col: 0,
         };
@@ -132,7 +136,7 @@ impl<'a> Console<'a> {
     }
 }
 
-impl fmt::Write for Console<'_> {
+impl fmt::Write for Console {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         self.write(s.as_bytes());
         Ok(())
