@@ -136,11 +136,6 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
 
     let mut console= Console::new(framebuffer);
 
-    for i in 0..=100 {
-        boot_print!(&mut console, "{}", i);
-    }
-
-    boot_println!(&mut console);
     boot_println!(&mut console, "Boot complete!");
     loop {
         hlt();
