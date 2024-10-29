@@ -132,7 +132,7 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     interrupts::init_idt();
 
     let recursive_index = boot_info.recursive_index.into_option().expect("Expected recursive index");
-    let (mapper, frame_allocator) = unsafe { memory::init(PageTableIndex::new(recursive_index), &boot_info.memory_regions) };
+    let (mapper, pmm) = unsafe { memory::init(PageTableIndex::new(recursive_index), &boot_info.memory_regions) };
 
     let mut console= Console::new(framebuffer);
 

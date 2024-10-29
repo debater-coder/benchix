@@ -1,7 +1,9 @@
+use alloc::vec;
+use alloc::vec::Vec;
 use bootloader_api::info::{MemoryRegionKind, MemoryRegions};
 use linked_list_allocator::LockedHeap;
 use x86_64::{PhysAddr, VirtAddr};
-use x86_64::structures::paging::{FrameAllocator, Mapper, Page, PageTable, PageTableFlags, PageTableIndex, PhysFrame, RecursivePageTable, Size4KiB};
+use x86_64::structures::paging::{FrameAllocator, FrameDeallocator, Mapper, Page, PageSize, PageTable, PageTableFlags, PageTableIndex, PhysFrame, RecursivePageTable, Size4KiB};
 use x86_64::structures::paging::mapper::MapToError;
 
 pub const HEAP_START: u64 = 0x_4444_4444_0000;
@@ -9,19 +11,17 @@ pub const HEAP_START: u64 = 0x_4444_4444_0000;
 #[global_allocator]
 static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
-pub const HEAP_SIZE: u64 = 100 * 1024; // 100 KiB
+pub const INITIAL_HEAP_SIZE: u64 = 1024 * 1024;
 
 
 /// # Safety
 /// Can only be called once.
 /// # Panics
 /// If recursive index is invalid.
-pub unsafe fn init(recursive_index: PageTableIndex, memory_regions: &'static MemoryRegions) -> (RecursivePageTable<'static>, BootInfoFrameAllocator) {
+pub unsafe fn init(recursive_index: PageTableIndex, memory_regions: &'static MemoryRegions) -> (RecursivePageTable<'static>, PhysicalMemoryManager) {
     let mut page_table = init_page_table(recursive_index);
-    let mut frame_allocator = unsafe { BootInfoFrameAllocator::new(memory_regions) };
-    init_heap(&mut frame_allocator, &mut page_table).expect("Failed to initialise heap");
-
-    (page_table, frame_allocator)
+    let mut pmm = PhysicalMemoryManager::init_with_heap(memory_regions, &mut page_table);
+    (page_table, pmm)
 }
 
 fn init_page_table(recursive_index: PageTableIndex) -> RecursivePageTable<'static> {
@@ -32,40 +32,62 @@ fn init_page_table(recursive_index: PageTableIndex) -> RecursivePageTable<'stati
     RecursivePageTable::new(unsafe {&mut *page_table_pointer}).unwrap()
 }
 
-fn init_heap(
-    frame_allocator: &mut BootInfoFrameAllocator,
-    mapper: &mut RecursivePageTable<'static>,
-) -> Result<(), MapToError<Size4KiB>> {
-    let heap_start = VirtAddr::new(HEAP_START);
-    let heap_end = heap_start + HEAP_SIZE - 1u64;
-    let page_range = Page::range_inclusive(
-        Page::containing_address(heap_start),
-        Page::containing_address(heap_end),
-    );
+pub struct PhysicalMemoryManager {
+    free_frames: Vec<PhysFrame>
+}
 
-    for page in page_range {
-        let frame = frame_allocator
-            .allocate_frame()
-            .ok_or(MapToError::FrameAllocationFailed)?;
-        let flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE;
-        unsafe {
-            mapper.map_to(page, frame, flags, frame_allocator)?.flush();
+impl PhysicalMemoryManager {
+    pub unsafe fn init_with_heap(memory_regions: &'static MemoryRegions, mapper: &mut impl Mapper<Size4KiB>) -> Self {
+        Self::init_with_heap_inner(memory_regions, mapper)
+    }
+
+    fn init_with_heap_inner(memory_regions: &'static MemoryRegions, mapper: &mut impl Mapper<Size4KiB>) -> PhysicalMemoryManager {
+        let mut frame_allocator = unsafe { LinearFrameAllocator::new(memory_regions) };
+
+        let heap_start = VirtAddr::new(HEAP_START);
+        let heap_end = heap_start + INITIAL_HEAP_SIZE - 1u64;
+        let page_range = Page::range_inclusive(
+            Page::containing_address(heap_start),
+            Page::containing_address(heap_end),
+        );
+
+        for page in page_range {
+            let frame = frame_allocator
+                .allocate_frame()
+                .expect("Failed to initialise heap");
+            let flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE;
+            unsafe {
+                mapper.map_to(page, frame, flags, &mut frame_allocator).expect("Failed to initialise heap").flush();
+            }
         }
-    }
 
-    unsafe {
-        ALLOCATOR.lock().init(heap_start.as_mut_ptr(), HEAP_SIZE as usize);
-    }
+        unsafe { ALLOCATOR.lock().init(heap_start.as_mut_ptr(), INITIAL_HEAP_SIZE as usize) };
 
-    Ok(())
+        // FIXME: This is really slow
+        let free_frames: Vec<_> = frame_allocator.available_frames().skip(frame_allocator.next).collect();
+
+        PhysicalMemoryManager { free_frames }
+    }
 }
 
-pub struct BootInfoFrameAllocator {
+unsafe impl FrameAllocator<Size4KiB> for PhysicalMemoryManager {
+    fn allocate_frame(&mut self) -> Option<PhysFrame<Size4KiB>> {
+        self.free_frames.pop()
+    }
+}
+
+impl FrameDeallocator<Size4KiB> for PhysicalMemoryManager {
+    unsafe fn deallocate_frame(&mut self, frame: PhysFrame<Size4KiB>) {
+        self.free_frames.push(frame);
+    }
+}
+
+struct LinearFrameAllocator {
     next: usize,
-    memory_regions: &'static MemoryRegions,
+    memory_regions: &'static MemoryRegions
 }
 
-impl BootInfoFrameAllocator {
+impl LinearFrameAllocator {
     fn available_frames(&self) -> impl Iterator<Item = PhysFrame> {
         let available_memory_regions = self
             .memory_regions
@@ -81,15 +103,15 @@ impl BootInfoFrameAllocator {
 
         available_frames
     }
-    pub unsafe fn new(memory_regions: &'static MemoryRegions) -> Self {
-        BootInfoFrameAllocator {
+    unsafe fn new(memory_regions: &'static MemoryRegions) -> Self {
+        LinearFrameAllocator {
             next: 0,
             memory_regions,
         }
     }
 }
 
-unsafe impl FrameAllocator<Size4KiB> for BootInfoFrameAllocator {
+unsafe impl FrameAllocator<Size4KiB> for LinearFrameAllocator {
     fn allocate_frame(&mut self) -> Option<PhysFrame<Size4KiB>> {
         let frame = self.available_frames().nth(self.next);
         self.next += 1;
