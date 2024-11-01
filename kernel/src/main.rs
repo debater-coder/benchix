@@ -9,7 +9,6 @@ mod interrupts;
 mod gdt;
 mod memory;
 
-use crate::console::Console;
 use alloc::fmt;
 use bootloader_api::config::Mapping;
 use bootloader_api::info::{FrameBuffer, FrameBufferInfo};
@@ -17,7 +16,6 @@ use bootloader_api::BootloaderConfig;
 use core::panic::PanicInfo;
 use noto_sans_mono_bitmap::{get_raster, get_raster_width, FontWeight, RasterHeight};
 use x86_64::instructions::hlt;
-use x86_64::structures::paging::PageTableIndex;
 
 struct PanicConsole {
     x: usize,
@@ -88,6 +86,7 @@ static mut PANIC_FRAMEBUFFER: Option<*mut FrameBuffer> = None;
 /// code running in the system, so it can have complete control without any rogue threads interfering.
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
+    debug_println!("panicked: {}", info.clone());
     if let Some(framebuffer) = unsafe { PANIC_FRAMEBUFFER } {
         let framebuffer = unsafe {&mut *framebuffer };
 
@@ -116,9 +115,14 @@ fn panic(info: &PanicInfo) -> ! {
     loop {}
 }
 
+pub const HEAP_START: u64 = 0x_ffff_9000_0000_0000;
+
 pub static BOOTLOADER_CONFIG: BootloaderConfig = {
     let mut config = BootloaderConfig::new_default();
-    config.mappings.page_table_recursive = Some(Mapping::Dynamic);
+    config.mappings.kernel_stack = Mapping::FixedAddress(0xffff_f700_0000_0000);
+    config.mappings.physical_memory = Some(Mapping::FixedAddress(0xffff_e000_0000_0000)); // 16 TiB of RAM ought to be enough for anybody
+    config.mappings.dynamic_range_start = Some(0xffff_8000_0000_0000);
+    config.mappings.dynamic_range_end = Some(0xffff_8fff_ffff_ffff);
     config
 };
 
@@ -131,12 +135,14 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     gdt::init();
     interrupts::init_idt();
 
-    let recursive_index = boot_info.recursive_index.into_option().expect("Expected recursive index");
-    let (mapper, pmm) = unsafe { memory::init(PageTableIndex::new(recursive_index), &boot_info.memory_regions) };
+    let physical_offset = boot_info.physical_memory_offset.into_option().expect("Expected recursive index");
 
-    let mut console= Console::new(framebuffer);
+    panic!("Oh noes");
+    // let (mapper, pmm) = unsafe { memory::init(PageTableIndex::new(recursive_index), &boot_info.memory_regions) };
 
-    boot_println!(&mut console, "Boot complete!");
+    // let mut console= Consol&mut e::new(framebuffer);
+
+    // boot_println!(&mut console, "Boot complete!");
     loop {
         hlt();
     }

@@ -3,6 +3,7 @@ use alloc::vec::Vec;
 use core::fmt;
 use bootloader_api::info::{FrameBuffer, FrameBufferInfo};
 use noto_sans_mono_bitmap::{get_raster, get_raster_width, FontWeight, RasterHeight};
+use x86_64::instructions::port::Port;
 
 const SIZE: RasterHeight = RasterHeight::Size32;
 
@@ -152,4 +153,31 @@ macro_rules! boot_print {
 macro_rules! boot_println {
     ($console:expr) => ($crate::boot_print!($console, "\n"));
     ($console:expr, $($arg:tt)*) => ($crate::boot_print!($console, "{}\n", format_args!($($arg)*)));
+}
+
+
+/// This is an example of how not to write hardware interfaces
+pub struct DebugCons;
+
+impl fmt::Write for DebugCons {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        unsafe {
+            for c in s.as_bytes() {
+                Port::new(0xe9).write(*c);
+            }
+        }
+
+        Ok(())
+    }
+}
+
+#[macro_export]
+macro_rules! debug_print {
+    ($($arg:tt)*) => (crate::console::DebugCons::write_fmt(&mut crate::console::DebugCons {}, format_args!($($arg)*)));
+}
+
+#[macro_export]
+macro_rules! debug_println {
+    () => ($crate::debug_print!("\n"));
+    ($($arg:tt)*) => ($crate::debug_print!("{}\n", format_args!($($arg)*)));
 }

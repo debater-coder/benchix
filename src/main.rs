@@ -5,6 +5,7 @@ fn main() {
     println!("UEFI Path s{:?}", uefi_path);
 
     let mut cmd = std::process::Command::new("qemu-system-x86_64");
+    cmd.arg("-debugcon").arg("stdio");
     cmd.arg("-bios").arg(ovmf_prebuilt::ovmf_pure_efi());
     cmd.arg("-drive").arg(format!("format=raw,file={uefi_path}"));
 
