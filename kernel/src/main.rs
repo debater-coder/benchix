@@ -137,10 +137,12 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
 
     let physical_offset = boot_info.physical_memory_offset.into_option().expect("Expected recursive index");
 
-    panic!("Oh noes");
-    // let (mapper, pmm) = unsafe { memory::init(PageTableIndex::new(recursive_index), &boot_info.memory_regions) };
+    let (mapper, pmm) = unsafe { memory::init(physical_offset, &boot_info.memory_regions) };
 
-    // let mut console= Consol&mut e::new(framebuffer);
+    debug_println!("{:?}", pmm);
+
+
+    // let mut console= Console::new(framebuffer);
 
     // boot_println!(&mut console, "Boot complete!");
     loop {
