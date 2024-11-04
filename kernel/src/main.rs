@@ -86,7 +86,7 @@ static mut PANIC_FRAMEBUFFER: Option<*mut FrameBuffer> = None;
 /// code running in the system, so it can have complete control without any rogue threads interfering.
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    debug_println!("panicked: {}", info.clone());
+    debug_println!("panicked: {}", info);
     if let Some(framebuffer) = unsafe { PANIC_FRAMEBUFFER } {
         let framebuffer = unsafe {&mut *framebuffer };
 
@@ -130,7 +130,7 @@ pub static BOOTLOADER_CONFIG: BootloaderConfig = {
 bootloader_api::entry_point!(kernel_main, config = &BOOTLOADER_CONFIG);
 fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     let framebuffer = boot_info.framebuffer.as_mut().unwrap();
-    unsafe { PANIC_FRAMEBUFFER = Some(&raw mut *framebuffer) }
+    unsafe { *&raw mut PANIC_FRAMEBUFFER = Some(&raw mut *framebuffer) }
 
     gdt::init();
     interrupts::init_idt();
@@ -139,7 +139,8 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
 
     let (mapper, pmm) = unsafe { memory::init(physical_offset, &boot_info.memory_regions) };
 
-    debug_println!("{:?}", pmm);
+    debug_println!("pmm: {:?} \
+mapper: {:?}", pmm, mapper);
 
 
     // let mut console= Console::new(framebuffer);

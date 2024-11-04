@@ -1,9 +1,9 @@
+use bootloader_api::info::MemoryRegions;
 use core::ptr::slice_from_raw_parts_mut;
-use bootloader_api::info::{MemoryRegionKind, MemoryRegions};
 use linked_list_allocator::LockedHeap;
 use x86_64::registers::control::Cr3;
-use x86_64::structures::paging::{OffsetPageTable, PhysFrame};
 use x86_64::structures::paging::frame::PhysFrameRange;
+use x86_64::structures::paging::{OffsetPageTable, PhysFrame};
 use x86_64::{PhysAddr, VirtAddr};
 
 #[global_allocator]
