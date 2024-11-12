@@ -16,6 +16,7 @@ use bootloader_api::BootloaderConfig;
 use core::panic::PanicInfo;
 use noto_sans_mono_bitmap::{get_raster, get_raster_width, FontWeight, RasterHeight};
 use x86_64::instructions::hlt;
+use x86_64::structures::paging::{FrameAllocator, FrameDeallocator};
 
 struct PanicConsole {
     x: usize,
@@ -137,10 +138,31 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
 
     let physical_offset = boot_info.physical_memory_offset.into_option().expect("Expected recursive index");
 
-    let (mapper, pmm) = unsafe { memory::init(physical_offset, &boot_info.memory_regions) };
+    let (mapper, mut pmm) = unsafe { memory::init(physical_offset, &boot_info.memory_regions) };
 
-    debug_println!("pmm: {:?} \
-mapper: {:?}", pmm, mapper);
+    debug_println!("INITIAL");
+    debug_println!("{}", pmm);
+    debug_println!();
+
+    let frame1 = pmm.allocate_frame();
+
+    let frame2 = pmm.allocate_frame();
+
+    debug_println!("{:?} {:?}", frame1, frame2);
+
+    debug_println!("AFTER ALLOC");
+    debug_println!("{}", pmm);
+    debug_println!();
+
+    for frame in [frame1, frame2] {
+        if let Some(frame) = frame {
+            unsafe { pmm.deallocate_frame(frame) };
+        }
+    }
+
+    debug_println!("AFTER DEALLOC");
+    debug_println!("{}", pmm);
+    debug_println!();
 
 
     // let mut console= Console::new(framebuffer);
