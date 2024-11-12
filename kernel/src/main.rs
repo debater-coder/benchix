@@ -2,6 +2,8 @@
 #![no_std]
 #![no_main]
 extern crate alloc;
+
+use alloc::boxed::Box;
 use core::fmt::Write;
 
 mod console;
@@ -9,7 +11,9 @@ mod interrupts;
 mod gdt;
 mod memory;
 
+use crate::console::Console;
 use alloc::fmt;
+use alloc::vec::Vec;
 use bootloader_api::config::Mapping;
 use bootloader_api::info::{FrameBuffer, FrameBufferInfo};
 use bootloader_api::BootloaderConfig;
@@ -17,6 +21,7 @@ use core::panic::PanicInfo;
 use noto_sans_mono_bitmap::{get_raster, get_raster_width, FontWeight, RasterHeight};
 use x86_64::instructions::hlt;
 use x86_64::structures::paging::{FrameAllocator, FrameDeallocator};
+use crate::memory::INITIAL_HEAP_SIZE;
 
 struct PanicConsole {
     x: usize,
@@ -138,36 +143,28 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
 
     let physical_offset = boot_info.physical_memory_offset.into_option().expect("Expected recursive index");
 
-    let (mapper, mut pmm) = unsafe { memory::init(physical_offset, &boot_info.memory_regions) };
+    let (_mapper, _pmm) = unsafe { memory::init(physical_offset, &boot_info.memory_regions) };
 
-    debug_println!("INITIAL");
-    debug_println!("{}", pmm);
-    debug_println!();
+    let mut console = Console::new(framebuffer);
 
-    let frame1 = pmm.allocate_frame();
-
-    let frame2 = pmm.allocate_frame();
-
-    debug_println!("{:?} {:?}", frame1, frame2);
-
-    debug_println!("AFTER ALLOC");
-    debug_println!("{}", pmm);
-    debug_println!();
-
-    for frame in [frame1, frame2] {
-        if let Some(frame) = frame {
-            unsafe { pmm.deallocate_frame(frame) };
-        }
+    for i in 0..INITIAL_HEAP_SIZE {
+        let x = Box::new(i);
+        assert_eq!(*x, i);
     }
 
-    debug_println!("AFTER DEALLOC");
-    debug_println!("{}", pmm);
-    debug_println!();
+    let n = 1000;
+    let mut vec = Vec::new();
+    for i in 0..n {
+        vec.push(i);
+    }
+    assert_eq!(vec.iter().sum::<u64>(), (n - 1) * n / 2);
 
+    let heap_value_1 = Box::new(41);
+    let heap_value_2 = Box::new(13);
+    assert_eq!(*heap_value_1, 41);
+    assert_eq!(*heap_value_2, 13);
 
-    // let mut console= Console::new(framebuffer);
-
-    // boot_println!(&mut console, "Boot complete!");
+    boot_println!(&mut console, "Boot complete!");
     loop {
         hlt();
     }

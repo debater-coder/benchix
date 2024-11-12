@@ -146,7 +146,7 @@ impl fmt::Write for Console {
 
 #[macro_export]
 macro_rules! boot_print {
-    ($console:expr, $($arg:tt)*) => (<Console as core::fmt::Write>::write_fmt($console, format_args!($($arg)*)));
+    ($console:expr, $($arg:tt)*) => (<Console as core::fmt::Write>::write_fmt($console, format_args!($($arg)*)).unwrap(););
 }
 
 #[macro_export]

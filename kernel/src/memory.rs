@@ -4,22 +4,40 @@ use bootloader_api::info::{MemoryRegionKind, MemoryRegions};
 use core::ptr::slice_from_raw_parts_mut;
 use linked_list_allocator::LockedHeap;
 use x86_64::registers::control::Cr3;
-use x86_64::structures::paging::{FrameAllocator, FrameDeallocator, OffsetPageTable, PhysFrame, Size4KiB};
+use x86_64::structures::paging::{FrameAllocator, FrameDeallocator, Mapper, OffsetPageTable, Page, PageTableFlags, PhysFrame, Size4KiB};
 use x86_64::{PhysAddr, VirtAddr};
-use crate::debug_println;
+use crate::HEAP_START;
 
 #[global_allocator]
 static ALLOCATOR: LockedHeap = LockedHeap::empty();
-
+pub const INITIAL_HEAP_SIZE: u64 = 100 * 1024;
 
 
 /// # Safety
 /// Can only be called once. Physical offset must be correct
 pub unsafe fn init(physical_offset: u64, memory_regions: &'static MemoryRegions) -> (OffsetPageTable<'static>, PhysicalMemoryManager<'static>) {
-    let mapper = init_page_table(physical_offset);
+    let mut mapper = init_page_table(physical_offset);
 
-    let pmm = PhysicalMemoryManager::new(&memory_regions, VirtAddr::new(physical_offset));
+    let mut pmm = PhysicalMemoryManager::new(&memory_regions, VirtAddr::new(physical_offset));
 
+    let heap_start = VirtAddr::new(HEAP_START);
+    let heap_end = heap_start + INITIAL_HEAP_SIZE - 1u64;
+    let page_range = Page::range_inclusive(
+        Page::containing_address(heap_start),
+        Page::containing_address(heap_end),
+    );
+
+    for page in page_range {
+        let frame = pmm
+            .allocate_frame()
+            .expect("Failed to initialise heap");
+        let flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE;
+        unsafe {
+            mapper.map_to(page, frame, flags, &mut pmm).expect("Failed to initialise heap").flush();
+        }
+    }
+
+    unsafe { ALLOCATOR.lock().init(heap_start.as_mut_ptr(), INITIAL_HEAP_SIZE as usize) };
     (mapper, pmm)
 }
 
@@ -67,11 +85,6 @@ impl<'a> PhysicalMemoryManager<'a> {
     fn clear_frame(&mut self, frame: PhysFrame) {
         self.bitmap[frame.start_address().as_u64() as usize / (4096 * 64)]
             &= !(1 << (frame.start_address().as_u64() / 4096) % 64);
-    }
-
-    fn test_frame(&self, frame: PhysFrame) -> bool {
-        self.bitmap[frame.start_address().as_u64() as usize / (4096 * 64)]
-            & 1 << (frame.start_address().as_u64() / 4096) % 64 > 0
     }
 
     fn new(memory_regions: &'static MemoryRegions, physical_offset: VirtAddr) -> Self {
