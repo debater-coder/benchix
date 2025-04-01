@@ -1,6 +1,8 @@
 use lazy_static::lazy_static;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
 
+use crate::{debug_print, debug_println, lapic::lapic_end_of_interrupt};
+
 lazy_static! {
     static ref IDT: InterruptDescriptorTable = {
         let mut idt = InterruptDescriptorTable::new();
@@ -56,12 +58,13 @@ pub fn init_idt() {
     IDT.load();
 }
 
-
-
 extern "x86-interrupt" fn spurious(_interrupt_stack_frame: InterruptStackFrame) {}
 
 extern "x86-interrupt" fn lapic_timer(_interrupt_stack_frame: InterruptStackFrame) {
-    unimplemented!()
+    debug_print!(".");
+    unsafe {
+        lapic_end_of_interrupt();
+    }
 }
 
 extern "x86-interrupt" fn keyboard(_interrupt_stack_frame: InterruptStackFrame) {

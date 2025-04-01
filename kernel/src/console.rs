@@ -1,7 +1,7 @@
 use alloc::vec;
 use alloc::vec::Vec;
-use core::fmt;
 use bootloader_api::info::{FrameBuffer, FrameBufferInfo};
+use core::fmt;
 use noto_sans_mono_bitmap::{get_raster, get_raster_width, FontWeight, RasterHeight};
 use x86_64::instructions::port::Port;
 
@@ -20,7 +20,7 @@ pub struct Console {
     col: usize,
     rows: usize,
     cols: usize,
-    offset: usize
+    offset: usize,
 }
 
 impl Console {
@@ -29,7 +29,10 @@ impl Console {
             framebuffer_info: framebuffer.info().clone(),
             raw_framebuffer: framebuffer.buffer_mut(),
         };
-        let (width, height) = (framebuffer.framebuffer_info.width, framebuffer.framebuffer_info.height);
+        let (width, height) = (
+            framebuffer.framebuffer_info.width,
+            framebuffer.framebuffer_info.height,
+        );
         let (rows, cols) = (height / Self::char_height(), width / Self::char_width());
         let mut console = Console {
             rows,
@@ -59,7 +62,7 @@ impl Console {
     fn newline(&mut self) {
         if self.row >= (self.rows - 1) {
             self.offset = (self.offset + self.cols) % (self.rows * self.cols); // Scroll down
-            // Clear last row
+                                                                               // Clear last row
             for x in 0..self.cols {
                 *self.char_mut(self.rows - 1, x) = b' ';
             }
@@ -155,7 +158,6 @@ macro_rules! boot_println {
     ($console:expr, $($arg:tt)*) => ($crate::boot_print!($console, "{}\n", format_args!($($arg)*)));
 }
 
-
 /// This is an example of how not to write hardware interfaces
 pub struct DebugCons;
 
@@ -173,7 +175,7 @@ impl fmt::Write for DebugCons {
 
 #[macro_export]
 macro_rules! debug_print {
-    ($($arg:tt)*) => (crate::console::DebugCons::write_fmt(&mut crate::console::DebugCons {}, format_args!($($arg)*)));
+    ($($arg:tt)*) => (<crate::console::DebugCons as core::fmt::Write>::write_fmt(&mut crate::console::DebugCons {}, format_args!($($arg)*)));
 }
 
 #[macro_export]
