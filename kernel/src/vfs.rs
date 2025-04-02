@@ -35,6 +35,7 @@ trait Filesystem {
     fn open(&self, inode: &Inode) -> Result<(), FilesystemError>; // Usually increments a reference counter or starts caching inodes -- doesn't lock the file
     fn close(&self, inode: &Inode) -> Result<(), FilesystemError>; // Decrements the reference counter, or removes from cache
     fn read(&self, inode: &Inode, offset: u64, buffer: &mut [u8]) -> Result<(), FilesystemError>; // A locking operation
+    fn write(&self, inode: &Inode, offset: u64, buffer: &[u8]) -> Result<(), FilesystemError>; // A locking operation
     fn readdir(&self, inode: &Inode) -> Result<Vec<DirectoryEntry>, FilesystemError>;
     fn inode(&self, dev: u8, inode: u32) -> Result<&Inode, FilesystemError>; // An inode lookup
 }
@@ -48,24 +49,37 @@ impl Filesystem for VirtualFileSystem {
         self.filesystems[inode.dev as usize]
             .as_ref()
             .ok_or(FilesystemError::UnknownDevice)?
-            .open(inode);
-        Ok(())
+            .open(inode)
     }
 
     fn close(&self, inode: &Inode) -> Result<(), FilesystemError> {
-        self.filesystems[inode.dev as usize]
-            .as_ref()
-            .ok_or(FilesystemError::UnknownDevice)?
-            .close(inode);
-        Ok(())
+        match inode.file_type {
+            FileType::Device | FileType::File => self.filesystems[inode.dev as usize]
+                .as_ref()
+                .ok_or(FilesystemError::UnknownDevice)?
+                .close(inode),
+            _ => Err(FilesystemError::WrongType),
+        }
     }
 
     fn read(&self, inode: &Inode, offset: u64, buffer: &mut [u8]) -> Result<(), FilesystemError> {
-        self.filesystems[inode.dev as usize]
-            .as_ref()
-            .ok_or(FilesystemError::UnknownDevice)?
-            .read(inode, offset, buffer);
-        Ok(())
+        match inode.file_type {
+            FileType::Device | FileType::File => self.filesystems[inode.dev as usize]
+                .as_ref()
+                .ok_or(FilesystemError::UnknownDevice)?
+                .read(inode, offset, buffer),
+            _ => Err(FilesystemError::WrongType),
+        }
+    }
+
+    fn write(&self, inode: &Inode, offset: u64, buffer: &[u8]) -> Result<(), FilesystemError> {
+        match inode.file_type {
+            FileType::Device | FileType::File => self.filesystems[inode.dev as usize]
+                .as_ref()
+                .ok_or(FilesystemError::UnknownDevice)?
+                .write(inode, offset, buffer),
+            _ => Err(FilesystemError::WrongType),
+        }
     }
 
     fn readdir(&self, inode: &Inode) -> Result<Vec<DirectoryEntry>, FilesystemError> {
@@ -78,7 +92,7 @@ impl Filesystem for VirtualFileSystem {
                 let filesystem = self.filesystems[inode.ptr.0 as usize]
                     .as_ref()
                     .ok_or(FilesystemError::UnknownDevice)?;
-                Ok(filesystem.readdir(filesystem.inode(inode.ptr.0, inode.ptr.1)?)?)
+                filesystem.readdir(filesystem.inode(inode.ptr.0, inode.ptr.1)?)
             }
             _ => Err(FilesystemError::WrongType),
         }

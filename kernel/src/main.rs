@@ -3,29 +3,25 @@
 #![no_main]
 extern crate alloc;
 
-use alloc::boxed::Box;
 use core::fmt::Write;
 use lapic::Lapic;
 use x86_64::registers::model_specific::Msr;
 
 mod console;
-mod fs;
 mod gdt;
 mod interrupts;
 mod lapic;
 mod memory;
+mod vfs;
 
 use crate::console::Console;
-use crate::memory::INITIAL_HEAP_SIZE;
 use alloc::fmt;
-use alloc::vec::Vec;
 use bootloader_api::config::Mapping;
 use bootloader_api::info::{FrameBuffer, FrameBufferInfo};
 use bootloader_api::BootloaderConfig;
 use core::panic::PanicInfo;
 use noto_sans_mono_bitmap::{get_raster, get_raster_width, FontWeight, RasterHeight};
 use x86_64::instructions::hlt;
-use x86_64::structures::paging::{FrameAllocator, FrameDeallocator};
 
 struct PanicConsole {
     x: usize,

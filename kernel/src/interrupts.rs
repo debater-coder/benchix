@@ -1,7 +1,7 @@
 use lazy_static::lazy_static;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
 
-use crate::{debug_print, debug_println, lapic::lapic_end_of_interrupt};
+use crate::{debug_print, lapic::lapic_end_of_interrupt};
 
 lazy_static! {
     static ref IDT: InterruptDescriptorTable = {

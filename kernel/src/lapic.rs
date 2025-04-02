@@ -5,7 +5,7 @@ use x86_64::{
     PhysAddr, VirtAddr,
 };
 
-use crate::{debug_println, memory::PhysicalMemoryManager, LAPIC_START_VIRT};
+use crate::{memory::PhysicalMemoryManager, LAPIC_START_VIRT};
 
 pub const LAPIC_ID_OFFSET: u64 = 0x20;
 pub const SIVR_OFFSET: u64 = 0xf0;
