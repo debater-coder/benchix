@@ -9,6 +9,7 @@ use lapic::Lapic;
 use x86_64::registers::model_specific::Msr;
 
 mod console;
+mod fs;
 mod gdt;
 mod interrupts;
 mod lapic;
