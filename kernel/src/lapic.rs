@@ -59,7 +59,8 @@ impl Lapic {
                     PageTableFlags::PRESENT | PageTableFlags::WRITABLE | PageTableFlags::NO_CACHE,
                     frame_allocator,
                 )
-                .unwrap();
+                .unwrap()
+                .flush();
         }
 
         let mm_region = slice_from_raw_parts_mut(virt_addr.as_mut_ptr(), 0x1000);

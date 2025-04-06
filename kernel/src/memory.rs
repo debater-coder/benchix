@@ -1,21 +1,26 @@
+use crate::HEAP_START;
+use bootloader_api::info::{MemoryRegionKind, MemoryRegions};
 use core::fmt::{Display, Formatter};
 use core::mem::zeroed;
-use bootloader_api::info::{MemoryRegionKind, MemoryRegions};
 use core::ptr::slice_from_raw_parts_mut;
 use linked_list_allocator::LockedHeap;
 use x86_64::registers::control::Cr3;
-use x86_64::structures::paging::{FrameAllocator, FrameDeallocator, Mapper, OffsetPageTable, Page, PageTableFlags, PhysFrame, Size4KiB};
+use x86_64::structures::paging::{
+    FrameAllocator, FrameDeallocator, Mapper, OffsetPageTable, Page, PageTableFlags, PhysFrame,
+    Size4KiB,
+};
 use x86_64::{PhysAddr, VirtAddr};
-use crate::HEAP_START;
 
 #[global_allocator]
 static ALLOCATOR: LockedHeap = LockedHeap::empty();
 pub const INITIAL_HEAP_SIZE: u64 = 100 * 1024;
 
-
 /// # Safety
 /// Can only be called once. Physical offset must be correct
-pub unsafe fn init(physical_offset: u64, memory_regions: &'static MemoryRegions) -> (OffsetPageTable<'static>, PhysicalMemoryManager<'static>) {
+pub unsafe fn init(
+    physical_offset: u64,
+    memory_regions: &'static MemoryRegions,
+) -> (OffsetPageTable<'static>, PhysicalMemoryManager<'static>) {
     let mut mapper = init_page_table(physical_offset);
 
     let mut pmm = PhysicalMemoryManager::new(&memory_regions, VirtAddr::new(physical_offset));
@@ -28,16 +33,21 @@ pub unsafe fn init(physical_offset: u64, memory_regions: &'static MemoryRegions)
     );
 
     for page in page_range {
-        let frame = pmm
-            .allocate_frame()
-            .expect("Failed to initialise heap");
+        let frame = pmm.allocate_frame().expect("Failed to initialise heap");
         let flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE;
         unsafe {
-            mapper.map_to(page, frame, flags, &mut pmm).expect("Failed to initialise heap").flush();
+            mapper
+                .map_to(page, frame, flags, &mut pmm)
+                .expect("Failed to initialise heap")
+                .flush();
         }
     }
 
-    unsafe { ALLOCATOR.lock().init(heap_start.as_mut_ptr(), INITIAL_HEAP_SIZE as usize) };
+    unsafe {
+        ALLOCATOR
+            .lock()
+            .init(heap_start.as_mut_ptr(), INITIAL_HEAP_SIZE as usize)
+    };
     (mapper, pmm)
 }
 
@@ -52,11 +62,10 @@ fn init_page_table(physical_offset: u64) -> OffsetPageTable<'static> {
     unsafe { OffsetPageTable::new(&mut *l4_page_table, physical_offset) }
 }
 
-
 #[derive(Debug)]
 pub struct PhysicalMemoryManager<'a> {
     bitmap: &'a mut [u64], // 0 for free, 1 for used
-    physical_offset: VirtAddr
+    physical_offset: VirtAddr,
 }
 
 impl Display for PhysicalMemoryManager<'_> {
@@ -64,11 +73,15 @@ impl Display for PhysicalMemoryManager<'_> {
         writeln!(f, "Physical address: {:?}", self.physical_offset)?;
         writeln!(f)?;
 
-
-        writeln!(f, "Bitmap physical address: base {:?} size {:?}", (self.bitmap.as_ptr() as u64) - self.physical_offset.as_u64(), self.bitmap.len())?;
+        writeln!(
+            f,
+            "Bitmap physical address: base {:?} size {:?}",
+            (self.bitmap.as_ptr() as u64) - self.physical_offset.as_u64(),
+            self.bitmap.len()
+        )?;
         for (index, value) in self.bitmap.iter().enumerate() {
             if *value > 0 {
-                writeln!(f, "{:0>16x}: {:0>64b}", index * 4096 * 64, value)?;
+                writeln!(f, "{:0>16x}: {:x}", index * 4096 * 64, value)?;
             }
         }
 
@@ -78,17 +91,18 @@ impl Display for PhysicalMemoryManager<'_> {
 
 impl<'a> PhysicalMemoryManager<'a> {
     fn set_frame(&mut self, frame: PhysFrame) {
-        self.bitmap[frame.start_address().as_u64() as usize / (4096 * 64)]
-            |= 1 << (frame.start_address().as_u64() / 4096) % 64;
+        self.bitmap[frame.start_address().as_u64() as usize / (4096 * 64)] |=
+            1 << (frame.start_address().as_u64() / 4096) % 64;
     }
 
     fn clear_frame(&mut self, frame: PhysFrame) {
-        self.bitmap[frame.start_address().as_u64() as usize / (4096 * 64)]
-            &= !(1 << (frame.start_address().as_u64() / 4096) % 64);
+        self.bitmap[frame.start_address().as_u64() as usize / (4096 * 64)] &=
+            !(1 << (frame.start_address().as_u64() / 4096) % 64);
     }
 
     fn new(memory_regions: &'static MemoryRegions, physical_offset: VirtAddr) -> Self {
-        let highest_address = memory_regions.iter()
+        let highest_address = memory_regions
+            .iter()
             .map(|region| region.end)
             .max()
             .unwrap();
@@ -96,12 +110,17 @@ impl<'a> PhysicalMemoryManager<'a> {
         // This trick rounds up instead of down
         let region_size: usize = ((highest_address + 4096 * 8 - 1) / (4096 * 8)) as usize;
 
-        let bitmap_region = memory_regions.iter()
+        let bitmap_region = memory_regions
+            .iter()
             .filter(|region| region.kind == MemoryRegionKind::Usable)
             .filter(|region| region.end - region.start >= region_size as u64)
-            .next().unwrap();
+            .next()
+            .unwrap();
 
-        let bitmap = slice_from_raw_parts_mut((physical_offset.as_u64() + bitmap_region.start) as *mut u64, region_size / 8);
+        let bitmap = slice_from_raw_parts_mut(
+            (physical_offset.as_u64() + bitmap_region.start) as *mut u64,
+            region_size / 8,
+        );
 
         let bitmap = unsafe { &mut *bitmap };
 
@@ -111,7 +130,7 @@ impl<'a> PhysicalMemoryManager<'a> {
 
         let mut pmm = PhysicalMemoryManager {
             bitmap,
-            physical_offset
+            physical_offset,
         };
 
         let bitmap_range = PhysFrame::range_inclusive(
@@ -119,13 +138,14 @@ impl<'a> PhysicalMemoryManager<'a> {
             PhysFrame::containing_address(PhysAddr::new(bitmap_region.end - 1)), // End address is exclusive
         );
 
-
         for frame in bitmap_range {
             pmm.set_frame(frame);
         }
 
-        for region in memory_regions.iter()
-            .filter(|region| region.kind != MemoryRegionKind::Usable) {
+        for region in memory_regions
+            .iter()
+            .filter(|region| region.kind != MemoryRegionKind::Usable)
+        {
             let frame_range = PhysFrame::range_inclusive(
                 PhysFrame::containing_address(PhysAddr::new(region.start)),
                 PhysFrame::containing_address(PhysAddr::new(region.end - 1)), // End address is exclusive
@@ -144,20 +164,19 @@ unsafe impl<'a> FrameAllocator<Size4KiB> for PhysicalMemoryManager<'a> {
     fn allocate_frame(&mut self) -> Option<PhysFrame<Size4KiB>> {
         for (idx, entry) in self.bitmap.iter().enumerate() {
             if *entry != u64::MAX {
-                let frame = PhysFrame::containing_address(
-                    PhysAddr::new((idx as u64 * 64 + entry.trailing_ones() as u64) * 4096)
-                );
+                let frame = PhysFrame::containing_address(PhysAddr::new(
+                    (idx as u64 * 64 + entry.trailing_ones() as u64) * 4096,
+                ));
 
                 self.set_frame(frame);
 
-                return Some(frame)
+                return Some(frame);
             }
         }
 
         None
     }
 }
-
 
 impl<'a> FrameDeallocator<Size4KiB> for PhysicalMemoryManager<'a> {
     unsafe fn deallocate_frame(&mut self, frame: PhysFrame<Size4KiB>) {

@@ -2,6 +2,8 @@ use lazy_static::lazy_static;
 use x86_64::instructions::segmentation::Segment;
 use x86_64::instructions::segmentation::{CS, DS, ES, FS, GS, SS};
 use x86_64::instructions::tables::load_tss;
+use x86_64::registers::control::{Efer, EferFlags};
+use x86_64::registers::model_specific::Star;
 use x86_64::structures::gdt::{Descriptor, GlobalDescriptorTable, SegmentSelector};
 use x86_64::structures::tss::TaskStateSegment;
 use x86_64::VirtAddr;
@@ -12,6 +14,8 @@ struct Selectors {
     code_selector: SegmentSelector,
     tss_selector: SegmentSelector,
     data_selector: SegmentSelector,
+    user_code_selector: SegmentSelector,
+    user_data_selector: SegmentSelector,
 }
 
 lazy_static! {
@@ -36,9 +40,13 @@ lazy_static! {
     static ref GDT: (GlobalDescriptorTable, Selectors) = {
         let mut gdt = GlobalDescriptorTable::new();
 
+        // Intel manual vol 3 3.4.2: A segment selector is a 16-bit identifier for a segment (see Figure 3-6). It does not point directly to the segment,
+        // but instead points to the segment descriptor that defines the segment.
         let code_selector = gdt.append(Descriptor::kernel_code_segment());
-        let tss_selector = gdt.append(Descriptor::tss_segment(&TSS));
         let data_selector = gdt.append(Descriptor::kernel_data_segment());
+        let tss_selector = gdt.append(Descriptor::tss_segment(&TSS));
+        let user_data_selector = gdt.append(Descriptor::user_data_segment());
+        let user_code_selector = gdt.append(Descriptor::user_code_segment());
 
         (
             gdt,
@@ -46,6 +54,8 @@ lazy_static! {
                 code_selector,
                 tss_selector,
                 data_selector,
+                user_code_selector,
+                user_data_selector
             },
         )
     };
@@ -63,5 +73,16 @@ pub fn init() {
         FS::set_reg(GDT.1.data_selector);
         GS::set_reg(GDT.1.data_selector);
         SS::set_reg(GDT.1.data_selector);
+
+        // Prepare for usermode
+        Efer::write(Efer::read() | EferFlags::SYSTEM_CALL_EXTENSIONS);
+        Star::write(
+            GDT.1.user_code_selector,
+            GDT.1.user_data_selector,
+            GDT.1.code_selector,
+            GDT.1.data_selector,
+        )
+        .unwrap();
+        // TODO: Write sycall RIP to LSTAR
     }
 }
