@@ -22,6 +22,7 @@ impl Devfs {
                 size: 0,
                 major: None,
                 minor: None,
+                inner: None,
             }),
             console_inode: Arc::new(Inode {
                 dev,
@@ -30,6 +31,7 @@ impl Devfs {
                 size: 0,
                 major: Some(1),
                 minor: Some(1),
+                inner: None,
             }),
         }
     }

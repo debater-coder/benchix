@@ -4,8 +4,6 @@
 extern crate alloc;
 
 use alloc::boxed::Box;
-use alloc::sync::Arc;
-use core::arch::asm;
 use core::fmt::Write;
 use filesystem::devfs::Devfs;
 use filesystem::vfs::{Filesystem, VirtualFileSystem};
@@ -13,7 +11,6 @@ use lapic::Lapic;
 use memory::PhysicalMemoryManager;
 use x86_64::registers::model_specific::Msr;
 use x86_64::structures::paging::{FrameAllocator, Mapper, OffsetPageTable, Page, PageTableFlags};
-use x86_64::VirtAddr;
 
 mod console;
 mod filesystem;

@@ -1,3 +1,5 @@
+use core::any::Any;
+
 use alloc::{
     borrow::ToOwned, boxed::Box, collections::btree_map::BTreeMap, string::String, sync::Arc,
     vec::Vec,
@@ -10,7 +12,7 @@ pub enum FilesystemError {
     NotFound,
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub enum FileType {
     File,
     Directory,
@@ -27,6 +29,7 @@ pub struct Inode {
     pub size: usize,        // 0 for devices
     pub major: Option<u32>, // Device driver
     pub minor: Option<u32>, // Specific device that belongs to driver
+    pub inner: Option<Box<dyn Any + Send + Sync>>,
 }
 
 #[derive(Debug, Clone)]
@@ -88,6 +91,7 @@ impl VirtualFileSystem {
                 size: 0,
                 major: None,
                 minor: None,
+                inner: None,
             }),
         }
     }
