@@ -1,5 +1,9 @@
-use alloc::{boxed::Box, collections::btree_map::BTreeMap, sync::Arc, vec::Vec};
+use alloc::{
+    borrow::ToOwned, boxed::Box, collections::btree_map::BTreeMap, string::String, sync::Arc,
+    vec::Vec,
+};
 
+#[derive(Debug)]
 pub enum FilesystemError {
     UnknownDevice,
     WrongType, // i.e file not directory or other way
@@ -11,7 +15,6 @@ pub enum FileType {
     File,
     Directory,
     Device, // Just block devices for now, we don't have a good distinction between buffered/unbuffered devices
-    Mountpoint,
 }
 
 /// # VFS in-memory inode
@@ -21,17 +24,14 @@ pub struct Inode {
     pub dev: u32,   // File system that the file belongs to
     pub inode: u32, // inode number
     pub file_type: FileType,
-    pub size: usize,             // 0 for devices
-    pub major: Option<u32>,      // Device driver
-    pub minor: Option<u32>,      // Specific device that belongs to driver
-    pub ptr: Option<(u32, u32)>, // (dev, inode) for mountpoints (if a file is a mountpoint it has size 0 bytes and is jsut basically this tuple)
+    pub size: usize,        // 0 for devices
+    pub major: Option<u32>, // Device driver
+    pub minor: Option<u32>, // Specific device that belongs to driver
 }
 
-/// # Why is `name` an Arc<str>?
-/// `name` is Arc<str> because it is a string reference to a block in the inode cache.
-/// This Arc is created by borrowing the Arc that wraps blocks. When this Arc is freed, it will decrement the block Arc.
+#[derive(Debug, Clone)]
 pub struct DirectoryEntry {
-    pub name: Arc<str>,
+    pub name: String,
     pub inode: u32,
     pub dev: u32,
 }
@@ -44,34 +44,36 @@ pub trait Filesystem {
         inode: Arc<Inode>,
         offset: u64,
         buffer: &mut [u8],
-    ) -> Result<(), FilesystemError>; // A locking operation
-    fn write(&self, inode: Arc<Inode>, offset: u64, buffer: &[u8]) -> Result<(), FilesystemError>; // A locking operation
+    ) -> Result<usize, FilesystemError>; // A locking operation
+    fn write(
+        &self,
+        inode: Arc<Inode>,
+        offset: u64,
+        buffer: &[u8],
+    ) -> Result<usize, FilesystemError>; // A locking operation
     fn readdir(&self, inode: Arc<Inode>) -> Result<Vec<DirectoryEntry>, FilesystemError>; // Get directory enteries
     fn inode(&self, dev: u32, inode: u32) -> Result<Arc<Inode>, FilesystemError>; // An inode lookup
-}
+    fn traverse_fs(&self, root: Arc<Inode>, path: &str) -> Result<Arc<Inode>, FilesystemError> {
+        path.split("/").fold(Ok(root), |inode, segment| {
+            if segment == "" {
+                return inode;
+            }
+            let (dev, ino) = self
+                .readdir(inode?)?
+                .iter()
+                .find(|dirent| *dirent.name == *segment)
+                .ok_or(FilesystemError::NotFound)
+                .map(|dirent| (dirent.dev, dirent.inode))?;
 
-/// Finds the inode relative to a root inode (assuming its a directory)
-pub fn traverse_fs(
-    filesystem: &impl Filesystem,
-    root: Arc<Inode>,
-    path: &str,
-) -> Result<Arc<Inode>, FilesystemError> {
-    path.split("/").fold(Ok(root), |inode, segment| {
-        let (dev, ino) = filesystem
-            .readdir(inode?)?
-            .iter()
-            .find(|dirent| *dirent.name == *segment)
-            .ok_or(FilesystemError::NotFound)
-            .map(|dirent| (dirent.dev, dirent.inode))?;
-
-        filesystem.inode(dev, ino)
-    })
+            self.inode(dev, ino)
+        })
+    }
 }
 
 pub struct VirtualFileSystem {
     filesystems: BTreeMap<u32, Box<dyn Filesystem>>,
     dirents: Vec<DirectoryEntry>,
-    pub root: Inode,
+    pub root: Arc<Inode>,
 }
 
 impl VirtualFileSystem {
@@ -79,29 +81,43 @@ impl VirtualFileSystem {
         VirtualFileSystem {
             filesystems: BTreeMap::new(),
             dirents: Vec::new(),
-            root: Inode {
+            root: Arc::new(Inode {
                 dev: 0,
                 inode: 0,
                 file_type: FileType::Directory,
                 size: 0,
                 major: None,
                 minor: None,
-                ptr: None,
-            },
+            }),
         }
     }
 
-    pub fn mount(&mut self, dev: u32, filesystem: Box<dyn Filesystem>, path: &str) {
+    /// Only allows root mounting
+    pub fn mount(
+        &mut self,
+        dev: u32,
+        filesystem: Box<dyn Filesystem>,
+        name: &str,
+        root_inode: u32,
+    ) -> Result<(), FilesystemError> {
         // Add filesystem with correct device
         self.filesystems.insert(dev, filesystem);
+        self.dirents.push(DirectoryEntry {
+            name: name.to_owned(),
+            inode: root_inode,
+            dev,
+        });
 
-        // Mount to directory
-        // TODO: Traversing directory logic
+        Ok(())
     }
 }
 
 impl Filesystem for VirtualFileSystem {
     fn open(&self, inode: Arc<Inode>) -> Result<(), FilesystemError> {
+        if inode.dev == 0 {
+            return Ok(()); // Root inode has no implementation
+        }
+
         match inode.file_type {
             FileType::Device | FileType::File => self
                 .filesystems
@@ -113,6 +129,10 @@ impl Filesystem for VirtualFileSystem {
     }
 
     fn close(&self, inode: Arc<Inode>) -> Result<(), FilesystemError> {
+        if inode.dev == 0 {
+            return Ok(());
+        }
+
         match inode.file_type {
             FileType::Device | FileType::File => self
                 .filesystems
@@ -128,48 +148,52 @@ impl Filesystem for VirtualFileSystem {
         inode: Arc<Inode>,
         offset: u64,
         buffer: &mut [u8],
-    ) -> Result<(), FilesystemError> {
+    ) -> Result<usize, FilesystemError> {
         match inode.file_type {
             FileType::Device | FileType::File => self
                 .filesystems
                 .get(&inode.dev)
                 .ok_or(FilesystemError::UnknownDevice)?
                 .read(inode, offset, buffer),
-            _ => Err(FilesystemError::WrongType),
+            _ => Err(FilesystemError::WrongType), // Root inode
         }
     }
 
-    fn write(&self, inode: Arc<Inode>, offset: u64, buffer: &[u8]) -> Result<(), FilesystemError> {
+    fn write(
+        &self,
+        inode: Arc<Inode>,
+        offset: u64,
+        buffer: &[u8],
+    ) -> Result<usize, FilesystemError> {
         match inode.file_type {
             FileType::Device | FileType::File => self
                 .filesystems
                 .get(&inode.dev)
                 .ok_or(FilesystemError::UnknownDevice)?
                 .write(inode, offset, buffer),
-            _ => Err(FilesystemError::WrongType),
+            _ => Err(FilesystemError::WrongType), // Root inode
         }
     }
 
     fn readdir(&self, inode: Arc<Inode>) -> Result<Vec<DirectoryEntry>, FilesystemError> {
+        if inode.dev == 0 && inode.inode == 0 {
+            return Ok(self.dirents.clone());
+        }
+
         match inode.file_type {
             FileType::Directory => Ok(self
                 .filesystems
                 .get(&inode.dev)
                 .ok_or(FilesystemError::UnknownDevice)?
                 .readdir(inode)?),
-            FileType::Mountpoint => {
-                let (dev, inode) = inode.ptr.expect("mountpoint should have ptr");
-                let filesystem = self
-                    .filesystems
-                    .get(&dev)
-                    .ok_or(FilesystemError::UnknownDevice)?;
-                filesystem.readdir(filesystem.inode(dev, inode)?)
-            }
             _ => Err(FilesystemError::WrongType),
         }
     }
 
     fn inode(&self, dev: u32, inode: u32) -> Result<Arc<Inode>, FilesystemError> {
+        if dev == 0 && inode == 0 {
+            return Ok(Arc::clone(&self.root));
+        }
         Ok(self
             .filesystems
             .get(&dev)

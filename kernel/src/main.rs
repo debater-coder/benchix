@@ -3,19 +3,24 @@
 #![no_main]
 extern crate alloc;
 
+use alloc::boxed::Box;
+use alloc::sync::Arc;
 use core::arch::asm;
-use core::fmt::{Debug, Write};
+use core::fmt::Write;
+use filesystem::devfs::Devfs;
+use filesystem::vfs::{Filesystem, VirtualFileSystem};
 use lapic::Lapic;
+use memory::PhysicalMemoryManager;
 use x86_64::registers::model_specific::Msr;
-use x86_64::structures::paging::{FrameAllocator, Mapper, Page, PageTableFlags};
+use x86_64::structures::paging::{FrameAllocator, Mapper, OffsetPageTable, Page, PageTableFlags};
 use x86_64::VirtAddr;
 
 mod console;
+mod filesystem;
 mod gdt;
 mod interrupts;
 mod lapic;
 mod memory;
-mod vfs;
 
 use crate::console::Console;
 use alloc::fmt;
@@ -24,7 +29,7 @@ use bootloader_api::info::{FrameBuffer, FrameBufferInfo};
 use bootloader_api::BootloaderConfig;
 use core::panic::PanicInfo;
 use noto_sans_mono_bitmap::{get_raster, get_raster_width, FontWeight, RasterHeight};
-use x86_64::instructions::{self, hlt};
+use x86_64::instructions::hlt;
 
 struct PanicConsole {
     x: usize,
@@ -159,44 +164,81 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
 
     let mut console = Console::new(framebuffer);
 
-    // Userspace doesn't like this:
-
-    // let mut apic_base_msr = Msr::new(0x1b);
-    // unsafe { apic_base_msr.write(apic_base_msr.read() | (1 << 11)) };
-    // let mut lapic = unsafe { Lapic::new(&mut mapper, &mut pmm, 0xff) };
-    // lapic.configure_timer(0x31, 0xffffff, lapic::TimerDivideConfig::DivideBy16);
-    // x86_64::instructions::interrupts::enable();
+    let mut apic_base_msr = Msr::new(0x1b);
+    unsafe { apic_base_msr.write(apic_base_msr.read() | (1 << 11)) };
+    let mut lapic = unsafe { Lapic::new(&mut mapper, &mut pmm, 0xff) };
+    lapic.configure_timer(0x31, 0xffffff, lapic::TimerDivideConfig::DivideBy16);
+    x86_64::instructions::interrupts::enable();
     boot_println!(&mut console, "Boot complete!");
 
-    instructions::interrupts::disable();
-    let user_frame = pmm.allocate_frame().expect("Could not allocate frame");
-    unsafe {
-        let user_addr = VirtAddr::new(0x400000);
-        mapper
-            .map_to(
-                Page::containing_address(user_addr),
-                user_frame,
-                PageTableFlags::PRESENT
-                    | PageTableFlags::WRITABLE
-                    | PageTableFlags::USER_ACCESSIBLE,
-                &mut pmm,
-            )
-            .unwrap()
-            .flush();
+    let mut vfs = VirtualFileSystem::new();
+    let devfs = Devfs::new(console, 1);
+    vfs.mount(1, Box::new(devfs), "dev", 0);
 
-        user_addr.as_mut_ptr::<u16>().write(0xFEEB); // Infinite loop
+    for entry in vfs.readdir(vfs.root.clone()).unwrap() {
+        debug_println!(
+            "name: {}, (dev, inode): ({}, {})",
+            entry.name,
+            entry.dev,
+            entry.inode
+        );
     }
-    unsafe {
-        asm!("mov r11, 0x0202", "mov rcx, 0x400000", "sysretq");
+
+    for entry in vfs
+        .readdir(vfs.traverse_fs(vfs.root.clone(), "/dev/").unwrap())
+        .unwrap()
+    {
+        debug_println!(
+            "name: {}, (dev, inode): ({}, {})",
+            entry.name,
+            entry.dev,
+            entry.inode
+        );
     }
+
+    vfs.write(
+        vfs.traverse_fs(vfs.root.clone(), "/dev/console").unwrap(),
+        0,
+        &"Hello, from /dev/console".as_bytes(),
+    )
+    .unwrap();
+
+    // unsafe {
+    //     // Allocates user code
+    //     let user_addr = VirtAddr::new(0x400000);
+    //     allocate_user_page(&mut mapper, &mut pmm, Page::containing_address(user_addr));
+    //     user_addr.as_mut_ptr::<u16>().write(0xFEEB); // Infinite loop
+
+    //     // Allocates user stack
+    //     let stack_addr = VirtAddr::new(0x0000_7fff_ffff_0000);
+    //     allocate_user_page(&mut mapper, &mut pmm, Page::containing_address(stack_addr));
+
+    //     x86_64::instructions::interrupts::disable(); // To avoid handling interrupts with user stack
+    //     asm!(
+    //         "mov rsp, 0x00007fffffffffff", // Stacks grow downwards
+    //         "mov r11, 0x0202",             // Bit 9 is set, thus interrupts are enabled
+    //         "mov rcx, 0x400000",
+    //         "sysretq"
+    //     );
+    // }
 
     loop {
         hlt();
     }
 }
 
-static mut user_stack: [u64; 1024] = [0; 1024];
-
-fn user_function() -> ! {
-    loop {}
+unsafe fn allocate_user_page(
+    mapper: &mut OffsetPageTable,
+    pmm: &mut PhysicalMemoryManager,
+    page: Page,
+) {
+    mapper
+        .map_to(
+            page,
+            pmm.allocate_frame().expect("Could not allocate frame"),
+            PageTableFlags::PRESENT | PageTableFlags::WRITABLE | PageTableFlags::USER_ACCESSIBLE,
+            pmm,
+        )
+        .unwrap()
+        .flush();
 }

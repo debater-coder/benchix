@@ -6,7 +6,7 @@ use x86_64::registers::control::{Efer, EferFlags};
 use x86_64::registers::model_specific::Star;
 use x86_64::structures::gdt::{Descriptor, GlobalDescriptorTable, SegmentSelector};
 use x86_64::structures::tss::TaskStateSegment;
-use x86_64::VirtAddr;
+use x86_64::{registers, VirtAddr};
 
 pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
 
@@ -31,11 +31,11 @@ lazy_static! {
 
             stack_end // stacks grow downwards
         };
-
         tss
     };
 }
 
+// There is one GDT for all CPUs
 lazy_static! {
     static ref GDT: (GlobalDescriptorTable, Selectors) = {
         let mut gdt = GlobalDescriptorTable::new();
@@ -44,7 +44,8 @@ lazy_static! {
         // but instead points to the segment descriptor that defines the segment.
         let code_selector = gdt.append(Descriptor::kernel_code_segment());
         let data_selector = gdt.append(Descriptor::kernel_data_segment());
-        let tss_selector = gdt.append(Descriptor::tss_segment(&TSS));
+        // One per CPU
+        let tss_selector = gdt.append(Descriptor::tss_segment(&TSS)); // The TSS should still be able to be mutated after this
         let user_data_selector = gdt.append(Descriptor::user_data_segment());
         let user_code_selector = gdt.append(Descriptor::user_code_segment());
 
