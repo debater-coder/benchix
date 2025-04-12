@@ -60,7 +60,7 @@ macro_rules! kernel_log {
         let vfs = VFS.get().unwrap();
         let root = vfs.root.clone();
         let console = vfs.traverse_fs(root, "/dev/console").unwrap();
-        vfs.write(console, 0, text.as_bytes());
+        vfs.write(console, 0, text.as_bytes()).unwrap();
     };
 }
 

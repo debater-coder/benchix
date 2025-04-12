@@ -64,7 +64,7 @@ extern "x86-interrupt" fn lapic_timer(_interrupt_stack_frame: InterruptStackFram
     let vfs = VFS.get().unwrap();
     let root = vfs.root.clone();
     let console = vfs.traverse_fs(root, "/dev/console").unwrap();
-    vfs.write(console, 0, ".".as_bytes());
+    vfs.write(console, 0, ".".as_bytes()).unwrap();
     unsafe {
         lapic_end_of_interrupt();
     }
