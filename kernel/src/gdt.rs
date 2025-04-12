@@ -12,7 +12,7 @@ use x86_64::structures::gdt::{Descriptor, GlobalDescriptorTable, SegmentSelector
 use x86_64::structures::tss::TaskStateSegment;
 use x86_64::{registers, VirtAddr};
 
-use crate::KERNEL_STACK_START;
+use crate::{KERNEL_STACK_SIZE, KERNEL_STACK_START};
 
 pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
 
@@ -35,15 +35,7 @@ impl PerCpu {
 
             stack_end // stacks grow downwards
         };
-        tss.privilege_stack_table[0] = {
-            const STACK_SIZE: usize = 4096 * 5;
-            static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
-
-            let stack_start = VirtAddr::from_ptr(unsafe { &raw const STACK });
-            let stack_end = stack_start + STACK_SIZE as u64;
-
-            stack_end // stacks grow downwards
-        };
+        tss.privilege_stack_table[0] = VirtAddr::new(KERNEL_STACK_START + KERNEL_STACK_SIZE);
 
         // Setting up gdt
         let gdt = GlobalDescriptorTable::new();
