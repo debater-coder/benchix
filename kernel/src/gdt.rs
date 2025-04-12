@@ -1,16 +1,14 @@
 use core::cell::UnsafeCell;
 
 use alloc::boxed::Box;
-use lazy_static::lazy_static;
-use spin::Mutex;
 use x86_64::instructions::segmentation::Segment;
 use x86_64::instructions::segmentation::{CS, DS, ES, FS, GS, SS};
 use x86_64::instructions::tables::load_tss;
 use x86_64::registers::control::{Efer, EferFlags};
 use x86_64::registers::model_specific::Star;
-use x86_64::structures::gdt::{Descriptor, GlobalDescriptorTable, SegmentSelector};
+use x86_64::structures::gdt::{Descriptor, GlobalDescriptorTable};
 use x86_64::structures::tss::TaskStateSegment;
-use x86_64::{registers, VirtAddr};
+use x86_64::VirtAddr;
 
 use crate::{KERNEL_STACK_SIZE, KERNEL_STACK_START};
 

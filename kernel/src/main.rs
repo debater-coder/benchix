@@ -4,6 +4,7 @@
 extern crate alloc;
 
 use alloc::boxed::Box;
+use conquer_once::spin::OnceCell;
 use core::arch::asm;
 use core::str;
 use filesystem::devfs::Devfs;
@@ -25,7 +26,7 @@ mod memory;
 mod panic;
 
 use crate::console::Console;
-use alloc::vec;
+use alloc::{format, vec};
 use bootloader_api::config::Mapping;
 use bootloader_api::BootloaderConfig;
 use x86_64::instructions::hlt;
@@ -44,6 +45,26 @@ pub static BOOTLOADER_CONFIG: BootloaderConfig = {
     config.mappings.dynamic_range_end = Some(0xffff_8fff_fffe_ffff);
     config
 };
+
+macro_rules! boot_log {
+    ($console:expr, $($arg:tt)*) => {
+            debug_println!("boot: {}", format_args!($($arg)*));
+            boot_println!($console, "boot: {}", format_args!($($arg)*));
+    };
+}
+
+macro_rules! kernel_log {
+    ($($arg:tt)*) => {
+        let text = format!("kernel: {}\n", format_args!($($arg)*));
+        debug_println!("{}", text);
+        let vfs = VFS.get().unwrap();
+        let root = vfs.root.clone();
+        let console = vfs.traverse_fs(root, "/dev/console").unwrap();
+        vfs.write(console, 0, text.as_bytes());
+    };
+}
+
+static VFS: OnceCell<VirtualFileSystem> = OnceCell::uninit();
 
 bootloader_api::entry_point!(kernel_main, config = &BOOTLOADER_CONFIG);
 fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
@@ -65,20 +86,25 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     }
 
     let mut console = Console::new(framebuffer);
+    boot_log!(&mut console, "Console initialised.");
 
+    boot_log!(&mut console, "Initialising APIC timer...");
     let mut apic_base_msr = Msr::new(0x1b);
     unsafe { apic_base_msr.write(apic_base_msr.read() | (1 << 11)) };
     let mut lapic = unsafe { Lapic::new(&mut mapper, &mut pmm, 0xff) };
     lapic.configure_timer(0x31, 0xffffff, lapic::TimerDivideConfig::DivideBy16);
-    x86_64::instructions::interrupts::enable();
-    boot_println!(&mut console, "Boot complete!");
+    boot_log!(&mut console, "APIC timer initialised.");
 
-    let mut vfs = VirtualFileSystem::new();
-    let devfs = Devfs::new(console, 1);
-    let initrd = Initrd::from_files(2, vec![("hello_world.txt", "Hello from initrd!")]);
-
-    vfs.mount(1, Box::new(devfs), "dev", 0);
-    vfs.mount(2, Box::new(initrd), "init", 0);
+    boot_log!(&mut console, "Initialising VFS...");
+    VFS.init_once(|| {
+        let mut vfs = VirtualFileSystem::new();
+        let devfs = Devfs::new(console, 1);
+        let initrd = Initrd::from_files(2, vec![("hello_world.txt", "Hello from initrd!")]);
+        vfs.mount(1, Box::new(devfs), "dev", 0).unwrap();
+        vfs.mount(2, Box::new(initrd), "init", 0).unwrap();
+        vfs
+    });
+    kernel_log!("VFS initialised");
 
     unsafe {
         // Allocates user code

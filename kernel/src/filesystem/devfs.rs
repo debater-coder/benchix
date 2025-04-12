@@ -1,5 +1,6 @@
 use alloc::{borrow::ToOwned, sync::Arc, vec};
 use spin::Mutex;
+use x86_64::instructions::interrupts::without_interrupts;
 
 use crate::console::Console;
 
@@ -67,7 +68,7 @@ impl Filesystem for Devfs {
         buffer: &mut [u8],
     ) -> Result<usize, super::vfs::FilesystemError> {
         if let (Some(1), Some(1)) = (inode.major, inode.minor) {
-            Ok(self.console.lock().read(buffer))
+            without_interrupts(|| Ok(self.console.lock().read(buffer)))
         } else {
             Err(FilesystemError::NotFound)
         }
@@ -80,7 +81,7 @@ impl Filesystem for Devfs {
         buffer: &[u8],
     ) -> Result<usize, super::vfs::FilesystemError> {
         if let (Some(1), Some(1)) = (inode.major, inode.minor) {
-            Ok(self.console.lock().write(buffer))
+            without_interrupts(|| Ok(self.console.lock().write(buffer)))
         } else {
             Err(FilesystemError::NotFound)
         }

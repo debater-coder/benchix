@@ -39,7 +39,7 @@ pub struct DirectoryEntry {
     pub dev: u32,
 }
 
-pub trait Filesystem {
+pub trait Filesystem: Send + Sync {
     fn open(&self, inode: Arc<Inode>) -> Result<(), FilesystemError>; // Usually increments a reference counter or starts caching inodes -- doesn't lock the file
     fn close(&self, inode: Arc<Inode>) -> Result<(), FilesystemError>; // Decrements the reference counter, or removes from cache
     fn read(
