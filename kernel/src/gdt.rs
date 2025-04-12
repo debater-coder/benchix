@@ -1,4 +1,8 @@
+use core::cell::UnsafeCell;
+
+use alloc::boxed::Box;
 use lazy_static::lazy_static;
+use spin::Mutex;
 use x86_64::instructions::segmentation::Segment;
 use x86_64::instructions::segmentation::{CS, DS, ES, FS, GS, SS};
 use x86_64::instructions::tables::load_tss;
@@ -8,20 +12,20 @@ use x86_64::structures::gdt::{Descriptor, GlobalDescriptorTable, SegmentSelector
 use x86_64::structures::tss::TaskStateSegment;
 use x86_64::{registers, VirtAddr};
 
+use crate::KERNEL_STACK_START;
+
 pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
 
-struct Selectors {
-    code_selector: SegmentSelector,
-    tss_selector: SegmentSelector,
-    data_selector: SegmentSelector,
-    user_code_selector: SegmentSelector,
-    user_data_selector: SegmentSelector,
+/// Per-CPU data
+pub struct PerCpu {
+    gdt: GlobalDescriptorTable,
+    tss: UnsafeCell<&'static mut TaskStateSegment>, // Interrupts should be disable when changing this
 }
 
-lazy_static! {
-    static ref TSS: TaskStateSegment = {
-        let mut tss = TaskStateSegment::new();
-
+impl PerCpu {
+    /// Initialises a CPU
+    pub unsafe fn init_cpu() -> Self {
+        let tss = Box::leak(Box::new(TaskStateSegment::new()));
         tss.interrupt_stack_table[DOUBLE_FAULT_IST_INDEX as usize] = {
             const STACK_SIZE: usize = 4096 * 5;
             static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
@@ -31,57 +35,51 @@ lazy_static! {
 
             stack_end // stacks grow downwards
         };
-        tss
-    };
-}
+        tss.privilege_stack_table[0] = {
+            const STACK_SIZE: usize = 4096 * 5;
+            static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
 
-// There is one GDT for all CPUs
-lazy_static! {
-    static ref GDT: (GlobalDescriptorTable, Selectors) = {
-        let mut gdt = GlobalDescriptorTable::new();
+            let stack_start = VirtAddr::from_ptr(unsafe { &raw const STACK });
+            let stack_end = stack_start + STACK_SIZE as u64;
 
-        // Intel manual vol 3 3.4.2: A segment selector is a 16-bit identifier for a segment (see Figure 3-6). It does not point directly to the segment,
-        // but instead points to the segment descriptor that defines the segment.
-        let code_selector = gdt.append(Descriptor::kernel_code_segment());
-        let data_selector = gdt.append(Descriptor::kernel_data_segment());
-        // One per CPU
-        let tss_selector = gdt.append(Descriptor::tss_segment(&TSS)); // The TSS should still be able to be mutated after this
-        let user_data_selector = gdt.append(Descriptor::user_data_segment());
-        let user_code_selector = gdt.append(Descriptor::user_code_segment());
+            stack_end // stacks grow downwards
+        };
 
-        (
+        // Setting up gdt
+        let gdt = GlobalDescriptorTable::new();
+
+        PerCpu {
             gdt,
-            Selectors {
-                code_selector,
-                tss_selector,
-                data_selector,
-                user_code_selector,
-                user_data_selector
-            },
-        )
-    };
-}
+            tss: UnsafeCell::new(tss),
+        }
+    }
 
-pub fn init() {
-    GDT.0.load();
+    pub unsafe fn init_gdt(&'static mut self) {
+        // Intel manual vol 3 3.4.2: A segment selector is a 16-bit identifier for a segment (see Figure 3-6). It does not point directly to the segment, // but instead points to the segment descriptor that defines the segment.
+        let code_selector = self.gdt.append(Descriptor::kernel_code_segment());
+        let data_selector = self.gdt.append(Descriptor::kernel_data_segment());
+        let tss_selector = self.gdt.append(Descriptor::tss_segment(*self.tss.get()));
+        let user_data_selector = self.gdt.append(Descriptor::user_data_segment());
+        let user_code_selector = self.gdt.append(Descriptor::user_code_segment());
 
-    unsafe {
-        CS::set_reg(GDT.1.code_selector);
-        load_tss(GDT.1.tss_selector);
+        self.gdt.load();
 
-        DS::set_reg(GDT.1.data_selector);
-        ES::set_reg(GDT.1.data_selector);
-        FS::set_reg(GDT.1.data_selector);
-        GS::set_reg(GDT.1.data_selector);
-        SS::set_reg(GDT.1.data_selector);
+        CS::set_reg(code_selector);
+        load_tss(tss_selector);
+
+        DS::set_reg(data_selector);
+        ES::set_reg(data_selector);
+        FS::set_reg(data_selector);
+        GS::set_reg(data_selector);
+        SS::set_reg(data_selector);
 
         // Prepare for usermode
         Efer::write(Efer::read() | EferFlags::SYSTEM_CALL_EXTENSIONS);
         Star::write(
-            GDT.1.user_code_selector,
-            GDT.1.user_data_selector,
-            GDT.1.code_selector,
-            GDT.1.data_selector,
+            user_code_selector,
+            user_data_selector,
+            code_selector,
+            data_selector,
         )
         .unwrap();
         // TODO: Write sycall RIP to LSTAR
