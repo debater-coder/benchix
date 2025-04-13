@@ -1,3 +1,4 @@
+#![feature(naked_functions)]
 #![feature(abi_x86_interrupt, new_zeroed_alloc)]
 #![no_std]
 #![no_main]
@@ -5,16 +6,13 @@ extern crate alloc;
 
 use alloc::boxed::Box;
 use conquer_once::spin::OnceCell;
-use core::arch::asm;
 use cpu::PerCpu;
 use filesystem::devfs::Devfs;
 use filesystem::initrd::Initrd;
-use filesystem::vfs::{Filesystem, VirtualFileSystem};
+use filesystem::vfs::VirtualFileSystem;
 use lapic::Lapic;
-use memory::PhysicalMemoryManager;
 use user::UserProcess;
 use x86_64::registers::model_specific::Msr;
-use x86_64::structures::paging::{FrameAllocator, Mapper, OffsetPageTable, Page, PageTableFlags};
 use x86_64::VirtAddr;
 
 mod console;
@@ -27,7 +25,7 @@ mod panic;
 mod user;
 
 use crate::console::Console;
-use alloc::{format, vec};
+use alloc::vec;
 use bootloader_api::config::Mapping;
 use bootloader_api::BootloaderConfig;
 use x86_64::instructions::hlt;
@@ -54,18 +52,19 @@ macro_rules! boot_log {
     };
 }
 
+#[macro_export]
 macro_rules! kernel_log {
     ($($arg:tt)*) => {
-        let text = format!("kernel: {}\n", format_args!($($arg)*));
+        let text = alloc::format!("kernel: {}\n", format_args!($($arg)*));
         debug_println!("{}", text);
-        let vfs = VFS.get().unwrap();
+        let vfs = $crate::VFS.get().unwrap();
         let root = vfs.root.clone();
-        let console = vfs.traverse_fs(root, "/dev/console").unwrap();
-        vfs.write(console, 0, text.as_bytes()).unwrap();
+        let console = <$crate::filesystem::vfs::VirtualFileSystem as $crate::filesystem::vfs::Filesystem>::traverse_fs(&vfs, root, "/dev/console").unwrap();
+        <$crate::filesystem::vfs::VirtualFileSystem as $crate::filesystem::vfs::Filesystem>::write(&vfs, console, 0, text.as_bytes()).unwrap();
     };
 }
 
-static VFS: OnceCell<VirtualFileSystem> = OnceCell::uninit();
+pub static VFS: OnceCell<VirtualFileSystem> = OnceCell::uninit();
 
 bootloader_api::entry_point!(kernel_main, config = &BOOTLOADER_CONFIG);
 fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
@@ -113,7 +112,10 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
             &mut mapper,
             &mut pmm,
             VirtAddr::new(0x400000),
-            &[0xEB, 0xFE],
+            &[
+                0x0F, 0x05, // syscall
+                0xEB, 0xFC, // jmp -4
+            ],
             VirtAddr::new(0x0000_7fff_ffff_0000),
             &[0; 0x1000],
         )

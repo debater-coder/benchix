@@ -1,11 +1,14 @@
-use core::{arch::asm, slice};
+use core::{
+    arch::{asm, naked_asm},
+    slice,
+};
 
 use x86_64::{
     structures::paging::{FrameAllocator, Mapper, OffsetPageTable, Page, PageTableFlags, Size4KiB},
     VirtAddr,
 };
 
-use crate::{debug_println, memory::PhysicalMemoryManager};
+use crate::{debug_println, kernel_log, memory::PhysicalMemoryManager};
 
 unsafe fn allocate_user_page(
     mapper: &mut OffsetPageTable,
@@ -85,4 +88,25 @@ impl UserProcess {
             );
         }
     }
+}
+
+extern "sysv64" fn handle_syscall_inner() {
+    // We still need to setup the syscall stack
+    // Right now we are using a userspace stack
+    kernel_log!("syscall from userspace!");
+}
+
+#[naked]
+pub unsafe extern "sysv64" fn handle_syscall() {
+    // save registers required by sysretq
+    naked_asm!(
+        "
+        push rcx
+        push r11
+        call {}
+        pop r11
+        pop rcx
+        sysretq",
+        sym handle_syscall_inner
+    );
 }

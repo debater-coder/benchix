@@ -5,11 +5,13 @@ use x86_64::instructions::segmentation::Segment;
 use x86_64::instructions::segmentation::{CS, DS, ES, FS, GS, SS};
 use x86_64::instructions::tables::load_tss;
 use x86_64::registers::control::{Efer, EferFlags};
-use x86_64::registers::model_specific::Star;
+use x86_64::registers::model_specific::{LStar, SFMask, Star};
+use x86_64::registers::rflags::RFlags;
 use x86_64::structures::gdt::{Descriptor, GlobalDescriptorTable};
 use x86_64::structures::tss::TaskStateSegment;
-use x86_64::VirtAddr;
+use x86_64::{registers, VirtAddr};
 
+use crate::user::handle_syscall;
 use crate::{KERNEL_STACK_SIZE, KERNEL_STACK_START};
 
 pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
@@ -72,6 +74,7 @@ impl PerCpu {
             data_selector,
         )
         .unwrap();
-        // TODO: Write sycall RIP to LSTAR
+        LStar::write(VirtAddr::from_ptr(handle_syscall as *const ()));
+        SFMask::write(RFlags::INTERRUPT_FLAG);
     }
 }
