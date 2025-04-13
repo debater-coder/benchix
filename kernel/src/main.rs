@@ -6,24 +6,25 @@ extern crate alloc;
 use alloc::boxed::Box;
 use conquer_once::spin::OnceCell;
 use core::arch::asm;
-use core::str;
+use cpu::PerCpu;
 use filesystem::devfs::Devfs;
 use filesystem::initrd::Initrd;
 use filesystem::vfs::{Filesystem, VirtualFileSystem};
-use gdt::PerCpu;
 use lapic::Lapic;
 use memory::PhysicalMemoryManager;
+use user::UserProcess;
 use x86_64::registers::model_specific::Msr;
 use x86_64::structures::paging::{FrameAllocator, Mapper, OffsetPageTable, Page, PageTableFlags};
 use x86_64::VirtAddr;
 
 mod console;
+mod cpu;
 mod filesystem;
-mod gdt;
 mod interrupts;
 mod lapic;
 mod memory;
 mod panic;
+mod user;
 
 use crate::console::Console;
 use alloc::{format, vec};
@@ -92,7 +93,7 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     let mut apic_base_msr = Msr::new(0x1b);
     unsafe { apic_base_msr.write(apic_base_msr.read() | (1 << 11)) };
     let mut lapic = unsafe { Lapic::new(&mut mapper, &mut pmm, 0xff) };
-    lapic.configure_timer(0x31, 0xffffff, lapic::TimerDivideConfig::DivideBy16);
+    lapic.configure_timer(0x31, 10000, lapic::TimerDivideConfig::DivideBy16);
     boot_log!(&mut console, "APIC timer initialised.");
 
     boot_log!(&mut console, "Initialising VFS...");
@@ -106,42 +107,22 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     });
     kernel_log!("VFS initialised");
 
-    unsafe {
-        // Allocates user code
-        let user_addr = VirtAddr::new(0x400000);
-        allocate_user_page(&mut mapper, &mut pmm, Page::containing_address(user_addr));
-        user_addr.as_mut_ptr::<u16>().write(0xFEEB); // Infinite loop
-
-        // Allocates user stack
-        let stack_addr = VirtAddr::new(0x0000_7fff_ffff_0000);
-        allocate_user_page(&mut mapper, &mut pmm, Page::containing_address(stack_addr));
-
-        x86_64::instructions::interrupts::disable(); // To avoid handling interrupts with user stack
-        asm!(
-            "mov rsp, 0x00007fffffffffff", // Stacks grow downwards
-            "mov r11, 0x0202",             // Bit 9 is set, thus interrupts are enabled
-            "mov rcx, 0x400000",
-            "sysretq"
-        );
-    }
-
+    kernel_log!("Allocating userspace...");
+    let user_process = unsafe {
+        UserProcess::new(
+            &mut mapper,
+            &mut pmm,
+            VirtAddr::new(0x400000),
+            &[0xEB, 0xFE],
+            VirtAddr::new(0x0000_7fff_ffff_0000),
+            &[0; 0x1000],
+        )
+    };
+    kernel_log!("Allocated userspace.");
+    kernel_log!("Switching to userspace...");
+    user_process.switch();
+    kernel_log!("Returned to kernel?");
     loop {
         hlt();
     }
-}
-
-unsafe fn allocate_user_page(
-    mapper: &mut OffsetPageTable,
-    pmm: &mut PhysicalMemoryManager,
-    page: Page,
-) {
-    mapper
-        .map_to(
-            page,
-            pmm.allocate_frame().expect("Could not allocate frame"),
-            PageTableFlags::PRESENT | PageTableFlags::WRITABLE | PageTableFlags::USER_ACCESSIBLE,
-            pmm,
-        )
-        .unwrap()
-        .flush();
 }

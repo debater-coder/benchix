@@ -25,7 +25,7 @@ lazy_static! {
             unsafe {
                 idt.double_fault
                     .set_handler_fn(double_fault)
-                    .set_stack_index(crate::gdt::DOUBLE_FAULT_IST_INDEX)
+                    .set_stack_index(crate::cpu::DOUBLE_FAULT_IST_INDEX)
             };
 
             idt.invalid_tss.set_handler_fn(invalid_tss);
