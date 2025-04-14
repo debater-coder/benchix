@@ -1,6 +1,8 @@
-use core::cell::UnsafeCell;
+use core::cell::{OnceCell, UnsafeCell};
 
 use alloc::boxed::Box;
+use alloc::collections::btree_map::BTreeMap;
+use alloc::vec::Vec;
 use x86_64::instructions::segmentation::Segment;
 use x86_64::instructions::segmentation::{CS, DS, ES, FS, GS, SS};
 use x86_64::instructions::tables::load_tss;
@@ -17,9 +19,13 @@ use crate::{KERNEL_STACK_SIZE, KERNEL_STACK_START};
 pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
 
 /// Per-CPU data
+/// In future, each process will have its own kernel stack
+/// For simplicity, we handle interrupts on the kernel stack of the current stack
+/// The linux kernel has a separate stack for this to save stack space.
+/// That's why we keep the TSS in an UnsafeCell, so we can update the interrupt handling stack.
 pub struct PerCpu {
     gdt: GlobalDescriptorTable,
-    tss: UnsafeCell<&'static mut TaskStateSegment>, // Interrupts should be disable when changing this
+    tss: &'static mut TaskStateSegment,
 }
 
 impl PerCpu {
@@ -40,17 +46,14 @@ impl PerCpu {
         // Setting up gdt
         let gdt = GlobalDescriptorTable::new();
 
-        PerCpu {
-            gdt,
-            tss: UnsafeCell::new(tss),
-        }
+        PerCpu { gdt, tss }
     }
 
     pub unsafe fn init_gdt(&'static mut self) {
         // Intel manual vol 3 3.4.2: A segment selector is a 16-bit identifier for a segment (see Figure 3-6). It does not point directly to the segment, // but instead points to the segment descriptor that defines the segment.
         let code_selector = self.gdt.append(Descriptor::kernel_code_segment());
         let data_selector = self.gdt.append(Descriptor::kernel_data_segment());
-        let tss_selector = self.gdt.append(Descriptor::tss_segment(*self.tss.get()));
+        let tss_selector = self.gdt.append(Descriptor::tss_segment(&self.tss));
         let user_data_selector = self.gdt.append(Descriptor::user_data_segment());
         let user_code_selector = self.gdt.append(Descriptor::user_code_segment());
 
@@ -77,4 +80,30 @@ impl PerCpu {
         LStar::write(VirtAddr::from_ptr(handle_syscall as *const ()));
         SFMask::write(RFlags::INTERRUPT_FLAG);
     }
+
+    pub fn get_kernel_stack(&self) -> VirtAddr {
+        self.tss.privilege_stack_table[0]
+    }
 }
+
+/// A Send + Sync structure storing all the per CPU data. We ensure CPUs can only access their own data, preventing data races.
+/// Eventually this will have an array indexed by LAPIC ID.
+/// TODO: make a `WithoutInterruptsCell`
+pub struct Cpus {
+    cpu: UnsafeCell<PerCpu>, // Only have one CPU right now
+}
+
+impl Cpus {
+    pub fn new(current_cpu: PerCpu) -> Self {
+        Cpus {
+            cpu: UnsafeCell::new(current_cpu),
+        }
+    }
+
+    pub fn get_cpu(&self) -> &mut PerCpu {
+        unsafe { self.cpu.get().as_mut().unwrap() }
+    }
+}
+
+unsafe impl Send for Cpus {}
+unsafe impl Sync for Cpus {}

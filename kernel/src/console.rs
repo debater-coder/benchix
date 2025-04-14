@@ -148,14 +148,14 @@ impl fmt::Write for Console {
 }
 
 #[macro_export]
-macro_rules! boot_print {
+macro_rules! early_print {
     ($console:expr, $($arg:tt)*) => (<Console as core::fmt::Write>::write_fmt($console, format_args!($($arg)*)).unwrap(););
 }
 
 #[macro_export]
-macro_rules! boot_println {
-    ($console:expr) => ($crate::boot_print!($console, "\n"));
-    ($console:expr, $($arg:tt)*) => ($crate::boot_print!($console, "{}\n", format_args!($($arg)*)));
+macro_rules! early_println {
+    ($console:expr) => ($crate::early_print!($console, "\n"));
+    ($console:expr, $($arg:tt)*) => ($crate::early_print!($console, "{}\n", format_args!($($arg)*)));
 }
 
 /// This is an example of how not to write hardware interfaces

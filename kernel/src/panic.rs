@@ -1,4 +1,3 @@
-
 use core::panic::PanicInfo;
 
 use alloc::fmt;
@@ -90,6 +89,7 @@ pub(crate) static mut PANIC_FRAMEBUFFER: Option<*mut FrameBuffer> = None;
 /// reinitialises the console from the framebuffer. This would normally be a violation of no mutable
 /// aliasing rules, so to remain safe the panic handler is responsible for terminating all other
 /// code running in the system, so it can have complete control without any rogue threads interfering.
+#[cfg(not(test))]
 #[panic_handler]
 pub(crate) fn panic(info: &PanicInfo) -> ! {
     debug_println!("panicked: {}", info);

@@ -6,7 +6,7 @@ extern crate alloc;
 
 use alloc::boxed::Box;
 use conquer_once::spin::OnceCell;
-use cpu::PerCpu;
+use cpu::{Cpus, PerCpu};
 use filesystem::devfs::Devfs;
 use filesystem::initrd::Initrd;
 use filesystem::vfs::VirtualFileSystem;
@@ -45,10 +45,10 @@ pub static BOOTLOADER_CONFIG: BootloaderConfig = {
     config
 };
 
-macro_rules! boot_log {
+macro_rules! early_log {
     ($console:expr, $($arg:tt)*) => {
             debug_println!("boot: {}", format_args!($($arg)*));
-            boot_println!($console, "boot: {}", format_args!($($arg)*));
+            early_println!($console, "boot: {}", format_args!($($arg)*));
     };
 }
 
@@ -65,6 +65,7 @@ macro_rules! kernel_log {
 }
 
 pub static VFS: OnceCell<VirtualFileSystem> = OnceCell::uninit();
+pub static CPUS: OnceCell<Cpus> = OnceCell::uninit();
 
 bootloader_api::entry_point!(kernel_main, config = &BOOTLOADER_CONFIG);
 fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
@@ -80,22 +81,22 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
 
     let (mut mapper, mut pmm) = unsafe { memory::init(physical_offset, &boot_info.memory_regions) };
 
-    let cpu = Box::leak(Box::new(unsafe { PerCpu::init_cpu() }));
+    CPUS.init_once(|| Cpus::new(unsafe { PerCpu::init_cpu() }));
     unsafe {
-        cpu.init_gdt();
+        CPUS.get().unwrap().get_cpu().init_gdt();
     }
 
     let mut console = Console::new(framebuffer);
-    boot_log!(&mut console, "Console initialised.");
+    early_log!(&mut console, "Console initialised.");
 
-    boot_log!(&mut console, "Initialising APIC timer...");
+    early_log!(&mut console, "Initialising APIC timer...");
     let mut apic_base_msr = Msr::new(0x1b);
     unsafe { apic_base_msr.write(apic_base_msr.read() | (1 << 11)) };
     let mut lapic = unsafe { Lapic::new(&mut mapper, &mut pmm, 0xff) };
     lapic.configure_timer(0x31, 10000, lapic::TimerDivideConfig::DivideBy16);
-    boot_log!(&mut console, "APIC timer initialised.");
+    early_log!(&mut console, "APIC timer initialised.");
 
-    boot_log!(&mut console, "Initialising VFS...");
+    early_log!(&mut console, "Initialising VFS...");
     VFS.init_once(|| {
         let mut vfs = VirtualFileSystem::new();
         let devfs = Devfs::new(console, 1);
@@ -113,8 +114,14 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
             &mut pmm,
             VirtAddr::new(0x400000),
             &[
+                // main
+                0x48, 0xC7, 0xC0, 0x01, 0x00, 0x00, 0x00, // mov rax, 1
+                0x48, 0xC7, 0xC7, 0x02, 0x00, 0x00, 0x00, // mov rdi, 2
+                0x48, 0xC7, 0xC6, 0x03, 0x00, 0x00, 0x00, // mov rsi, 3
+                0x48, 0xC7, 0xC2, 0x04, 0x00, 0x00, 0x00, // mov rdx, 4
+                0x49, 0xC7, 0xC2, 0x05, 0x00, 0x00, 0x00, // mov r10, 5
                 0x0F, 0x05, // syscall
-                0xEB, 0xFC, // jmp -4
+                0xEB, 0xD9, // jmp main
             ],
             VirtAddr::new(0x0000_7fff_ffff_0000),
             &[0; 0x1000],
