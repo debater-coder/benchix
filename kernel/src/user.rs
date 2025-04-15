@@ -99,8 +99,8 @@ impl UserProcess {
     }
 }
 
-extern "sysv64" fn get_kernel_stack() {
-    CPUS.get().unwrap().get_cpu().get_kernel_stack();
+extern "sysv64" fn get_kernel_stack() -> u64 {
+    CPUS.get().unwrap().get_cpu().get_kernel_stack().as_u64()
 }
 
 extern "sysv64" fn handle_syscall_inner(

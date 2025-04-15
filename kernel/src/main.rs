@@ -15,6 +15,7 @@ use user::UserProcess;
 use x86_64::registers::model_specific::Msr;
 use x86_64::VirtAddr;
 
+#[macro_use]
 mod console;
 mod cpu;
 mod filesystem;

@@ -14,7 +14,7 @@ use x86_64::structures::tss::TaskStateSegment;
 use x86_64::{registers, VirtAddr};
 
 use crate::user::handle_syscall;
-use crate::{KERNEL_STACK_SIZE, KERNEL_STACK_START};
+use crate::{kernel_log, KERNEL_STACK_SIZE, KERNEL_STACK_START};
 
 pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
 
@@ -41,7 +41,6 @@ impl PerCpu {
 
             stack_end // stacks grow downwards
         };
-        tss.privilege_stack_table[0] = VirtAddr::new(KERNEL_STACK_START + KERNEL_STACK_SIZE);
 
         // Setting up gdt
         let gdt = GlobalDescriptorTable::new();
