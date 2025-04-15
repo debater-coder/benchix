@@ -1,8 +1,6 @@
-use core::cell::{OnceCell, UnsafeCell};
+use core::cell::UnsafeCell;
 
 use alloc::boxed::Box;
-use alloc::collections::btree_map::BTreeMap;
-use alloc::vec::Vec;
 use x86_64::instructions::segmentation::Segment;
 use x86_64::instructions::segmentation::{CS, DS, ES, FS, GS, SS};
 use x86_64::instructions::tables::load_tss;
@@ -11,10 +9,9 @@ use x86_64::registers::model_specific::{LStar, SFMask, Star};
 use x86_64::registers::rflags::RFlags;
 use x86_64::structures::gdt::{Descriptor, GlobalDescriptorTable};
 use x86_64::structures::tss::TaskStateSegment;
-use x86_64::{registers, VirtAddr};
+use x86_64::VirtAddr;
 
 use crate::user::handle_syscall;
-use crate::{kernel_log, KERNEL_STACK_SIZE, KERNEL_STACK_START};
 
 pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
 

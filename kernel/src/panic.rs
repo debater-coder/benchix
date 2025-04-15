@@ -16,8 +16,6 @@ use bootloader_api::info::FrameBufferInfo;
 
 use bootloader_api::info::FrameBuffer;
 
-use crate::debug_println;
-
 pub(crate) struct PanicConsole {
     pub(crate) x: usize,
     pub(crate) y: usize,
