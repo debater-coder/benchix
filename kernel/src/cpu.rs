@@ -84,6 +84,10 @@ impl PerCpu {
     pub fn get_kernel_stack(&self) -> VirtAddr {
         self.tss.privilege_stack_table[0]
     }
+
+    pub fn set_kernel_stack(&mut self, top: VirtAddr) {
+        self.tss.privilege_stack_table[0] = top;
+    }
 }
 
 /// A Send + Sync structure storing all the per CPU data. We ensure CPUs can only access their own data, preventing data races.

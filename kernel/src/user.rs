@@ -3,6 +3,8 @@ use core::{
     slice,
 };
 
+use alloc::vec;
+use alloc::vec::Vec;
 use x86_64::{
     structures::paging::{FrameAllocator, Mapper, OffsetPageTable, Page, PageTableFlags, Size4KiB},
     VirtAddr,
@@ -33,6 +35,7 @@ unsafe fn allocate_user_page(
 pub struct UserProcess {
     pub text: VirtAddr,
     pub stack: VirtAddr, // Top of user stack
+    kstack: Vec<u64>,    // Top of kernel stack
 }
 
 impl UserProcess {
@@ -73,12 +76,18 @@ impl UserProcess {
         UserProcess {
             text: text_addr,
             stack: stack_end,
+            kstack: vec![0; 2 * 4096],
         }
     }
 
     pub fn switch(&self) {
         unsafe {
             x86_64::instructions::interrupts::disable(); // To avoid handling interrupts with user stack
+                                                         // Switch kernel stack
+            let top = VirtAddr::from_ptr(&self.kstack.last());
+            let bottom = VirtAddr::from_ptr(&self.kstack);
+            kernel_log!("top: {:?}, bottom: {:?}", top, bottom);
+            CPUS.get().unwrap().get_cpu().set_kernel_stack(top);
             asm!(
                 "mov rsp, {}", // Stacks grow downwards
                 "mov r11, 0x0202",             // Bit 9 is set, thus interrupts are enabled
