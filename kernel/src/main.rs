@@ -4,8 +4,6 @@
 #![no_main]
 extern crate alloc;
 
-use core::str;
-
 use alloc::boxed::Box;
 use conquer_once::spin::OnceCell;
 use cpu::{Cpus, PerCpu};
@@ -28,7 +26,7 @@ mod panic;
 mod user;
 
 use crate::console::Console;
-use alloc::vec;
+use alloc::{slice, vec};
 
 use bootloader_api::config::Mapping;
 use bootloader_api::BootloaderConfig;
@@ -99,6 +97,7 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     let mut lapic = unsafe { Lapic::new(&mut mapper, &mut pmm, 0xff) };
     lapic.configure_timer(0x31, 10000, lapic::TimerDivideConfig::DivideBy16);
     early_log!(&mut console, "APIC timer initialised.");
+    early_log!(&mut console, "Ramdisk size: {}", boot_info.ramdisk_len);
 
     early_log!(&mut console, "Initialising VFS...");
     VFS.init_once(|| {
@@ -106,23 +105,21 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
         let devfs = Devfs::new(console, 1);
         let initrd = Initrd::from_files(
             2,
-            vec![("hello_world.txt", "Hello from initrd!".as_bytes())],
+            vec![
+                ("hello_world.txt", "Hello from initrd!".as_bytes()),
+                ("init", unsafe {
+                    slice::from_raw_parts(
+                        VirtAddr::new(boot_info.ramdisk_addr.into_option().unwrap()).as_ptr(),
+                        boot_info.ramdisk_len as usize,
+                    )
+                }),
+            ],
         );
         vfs.mount(1, Box::new(devfs), "dev", 0).unwrap();
         vfs.mount(2, Box::new(initrd), "init", 0).unwrap();
         vfs
     });
     kernel_log!("VFS initialised");
-
-    let inode = VFS
-        .get()
-        .unwrap()
-        .traverse_fs(VFS.get().unwrap().root.clone(), "/init/hello_world.txt")
-        .unwrap();
-    let mut contents = vec![0u8; inode.size];
-    VFS.get().unwrap().read(inode, 0, &mut contents).unwrap();
-
-    kernel_log!("{:?}", str::from_utf8(contents.as_slice()));
 
     kernel_log!("Allocating userspace...");
     let user_process = unsafe {
