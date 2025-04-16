@@ -1,12 +1,5 @@
-#include <sys/syscall.h>
-#include <unistd.h>
+#include <stdio.h>
 
-void _start() {
-    for (int i = 0; i < 32; i++) {
-        syscall(1, 0);
-    }
-
-    for (;;) {
-        syscall(1, 2, 3, 4, 5);
-    }
+int main() {
+    printf("Hello, World!\n");
 }

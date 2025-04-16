@@ -105,15 +105,7 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
         let devfs = Devfs::new(console, 1);
         let initrd = Initrd::from_files(
             2,
-            vec![
-                ("hello_world.txt", "Hello from initrd!".as_bytes()),
-                ("init", unsafe {
-                    slice::from_raw_parts(
-                        VirtAddr::new(boot_info.ramdisk_addr.into_option().unwrap()).as_ptr(),
-                        boot_info.ramdisk_len as usize,
-                    )
-                }),
-            ],
+            vec![("hello_world.txt", "Hello from initrd!".as_bytes())],
         );
         vfs.mount(1, Box::new(devfs), "dev", 0).unwrap();
         vfs.mount(2, Box::new(initrd), "init", 0).unwrap();
@@ -122,25 +114,15 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     kernel_log!("VFS initialised");
 
     kernel_log!("Allocating userspace...");
-    let user_process = unsafe {
-        UserProcess::new(
-            &mut mapper,
-            &mut pmm,
-            VirtAddr::new(0x400000),
-            &[
-                // main
-                0x48, 0xC7, 0xC0, 0x01, 0x00, 0x00, 0x00, // mov rax, 1
-                0x48, 0xC7, 0xC7, 0x02, 0x00, 0x00, 0x00, // mov rdi, 2
-                0x48, 0xC7, 0xC6, 0x03, 0x00, 0x00, 0x00, // mov rsi, 3
-                0x48, 0xC7, 0xC2, 0x04, 0x00, 0x00, 0x00, // mov rdx, 4
-                0x49, 0xC7, 0xC2, 0x05, 0x00, 0x00, 0x00, // mov r10, 5
-                0x0F, 0x05, // syscall
-                0xEB, 0xD9, // jmp main
-            ],
-            VirtAddr::new(0x0000_7fff_ffff_0000),
-            &[0; 0x1000],
+    let binary = unsafe {
+        slice::from_raw_parts(
+            VirtAddr::new(boot_info.ramdisk_addr.into_option().unwrap()).as_ptr(),
+            boot_info.ramdisk_len as usize,
         )
     };
+
+    let user_process = UserProcess::load_elf(&mut mapper, &mut pmm, binary).unwrap();
+
     kernel_log!("Allocated userspace.");
     kernel_log!("Switching to userspace...");
     user_process.switch();

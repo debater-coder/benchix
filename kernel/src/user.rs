@@ -1,6 +1,7 @@
 use core::{
     arch::{asm, naked_asm},
-    slice,
+    mem::transmute,
+    ptr, slice,
 };
 
 use alloc::vec;
@@ -33,52 +34,122 @@ unsafe fn allocate_user_page(
 }
 
 pub struct UserProcess {
-    pub text: VirtAddr,
     pub stack: VirtAddr, // Top of user stack
     kstack: Vec<u64>,    // Top of kernel stack
+    rip: VirtAddr,
+}
+
+#[derive(Debug)]
+pub enum LoadingError {
+    InvalidHeader,
+}
+
+#[derive(Debug)]
+#[repr(C)]
+struct ProgramHeaderEntry {
+    segment_type: u64, // contains both p_type and p_flags
+    offset: u64,
+    virtual_address: u64,
+    unused: u64,
+    image_size: u64,
+    mem_size: u64,
+    align: u64,
 }
 
 impl UserProcess {
-    pub unsafe fn new(
+    pub fn load_elf(
         mapper: &mut OffsetPageTable<'_>,
         pmm: &mut PhysicalMemoryManager,
-        text_addr: VirtAddr,
-        text_content: &[u8],
-        stack_addr: VirtAddr,
-        stack_content: &[u8],
-    ) -> Self {
-        let text_range = Page::range_inclusive(
-            Page::<Size4KiB>::containing_address(text_addr),
-            Page::<Size4KiB>::containing_address(text_addr + (text_content.len() - 1) as u64),
+        binary: &[u8],
+    ) -> Result<Self, LoadingError> {
+        // Validate ELF header
+        if binary[0x0..0x4] != *b"\x7fELF" // Magic
+            || binary[0x4] != 2 // 64-bit
+            || binary[0x5] != 1 // Little endian
+            || binary[0x10] != 2
+        // Executable file
+        {
+            return Err(LoadingError::InvalidHeader);
+        }
+        let header_start = u64::from_ne_bytes(binary[0x20..0x28].try_into().unwrap()) as usize;
+        let header_size = u16::from_ne_bytes(binary[0x36..0x38].try_into().unwrap()) as usize;
+        let header_num = u16::from_ne_bytes(binary[0x38..0x3A].try_into().unwrap()) as usize;
+        kernel_log!(
+            "Headers: start: {:x} size: {:x} num: {}",
+            header_start,
+            header_size,
+            header_num
         );
 
-        let stack_end = stack_addr;
-        let stack_start = stack_addr - stack_content.len() as u64 + 1;
-        let stack_range = Page::range_inclusive(
-            Page::<Size4KiB>::containing_address(stack_start),
-            Page::<Size4KiB>::containing_address(stack_end),
-        );
-        unsafe {
-            for page in text_range {
-                allocate_user_page(mapper, pmm, page, PageTableFlags::empty());
-            }
-
-            for page in stack_range {
-                allocate_user_page(mapper, pmm, page, PageTableFlags::NO_EXECUTE);
-            }
-
-            slice::from_raw_parts_mut(text_addr.as_mut_ptr::<u8>(), text_content.len())
-                .copy_from_slice(text_content);
-            slice::from_raw_parts_mut(stack_end.as_mut_ptr::<u8>(), stack_content.len())
-                .copy_from_slice(stack_content);
+        if header_size < size_of::<ProgramHeaderEntry>() {
+            return Err(LoadingError::InvalidHeader);
         }
 
-        UserProcess {
-            text: text_addr,
-            stack: stack_end,
-            kstack: vec![0; 2 * 4096],
+        // Read program headers
+        let headers: Vec<&ProgramHeaderEntry> = (0..header_num)
+            .map(|i| header_start + header_size * i)
+            .map(|offset| unsafe {
+                &*(binary[offset..(offset + size_of::<ProgramHeaderEntry>())].as_ptr()
+                    as *const ProgramHeaderEntry)
+            })
+            .collect();
+
+        // Load program segments
+        for header in headers {
+            let segment_type = header.segment_type as u32;
+            let segment_flags = (header.segment_type >> 32) as u32;
+
+            kernel_log!(
+                "type: {:?} flags: {:?} other: {:?}",
+                segment_type,
+                segment_flags,
+                header
+            );
         }
+
+        panic!("This worked fine.");
     }
+
+    // pub fn new(
+    //     mapper: &mut OffsetPageTable<'_>,
+    //     pmm: &mut PhysicalMemoryManager,
+    //     text_addr: VirtAddr,
+    //     text_content: &[u8],
+    //     stack_addr: VirtAddr,
+    //     stack_content: &[u8],
+    // ) -> Self {
+    //     let text_range = Page::range_inclusive(
+    //         Page::<Size4KiB>::containing_address(text_addr),
+    //         Page::<Size4KiB>::containing_address(text_addr + (text_content.len() - 1) as u64),
+    //     );
+
+    //     let stack_end = stack_addr;
+    //     let stack_start = stack_addr - stack_content.len() as u64 + 1;
+    //     let stack_range = Page::range_inclusive(
+    //         Page::<Size4KiB>::containing_address(stack_start),
+    //         Page::<Size4KiB>::containing_address(stack_end),
+    //     );
+    //     unsafe {
+    //         for page in text_range {
+    //             allocate_user_page(mapper, pmm, page, PageTableFlags::empty());
+    //         }
+
+    //         for page in stack_range {
+    //             allocate_user_page(mapper, pmm, page, PageTableFlags::NO_EXECUTE);
+    //         }
+
+    //         slice::from_raw_parts_mut(text_addr.as_mut_ptr::<u8>(), text_content.len())
+    //             .copy_from_slice(text_content);
+    //         slice::from_raw_parts_mut(stack_end.as_mut_ptr::<u8>(), stack_content.len())
+    //             .copy_from_slice(stack_content);
+    //     }
+
+    //     UserProcess {
+    //         text: text_addr,
+    //         stack: stack_end,
+    //         kstack: vec![0; 2 * 4096],
+    //     }
+    // }
 
     pub fn switch(&self) {
         unsafe {
@@ -93,7 +164,7 @@ impl UserProcess {
                 "mov r11, 0x0202",             // Bit 9 is set, thus interrupts are enabled
                 "sysretq",
                 in(reg) self.stack.as_u64(),
-                in("rcx") self.text.as_u64()
+                in("rcx") self.rip.as_u64()
             );
         }
     }
