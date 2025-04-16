@@ -4,12 +4,14 @@
 #![no_main]
 extern crate alloc;
 
+use core::str;
+
 use alloc::boxed::Box;
 use conquer_once::spin::OnceCell;
 use cpu::{Cpus, PerCpu};
 use filesystem::devfs::Devfs;
 use filesystem::initrd::Initrd;
-use filesystem::vfs::VirtualFileSystem;
+use filesystem::vfs::{Filesystem, VirtualFileSystem};
 use lapic::Lapic;
 use user::UserProcess;
 use x86_64::registers::model_specific::Msr;
@@ -27,6 +29,7 @@ mod user;
 
 use crate::console::Console;
 use alloc::vec;
+
 use bootloader_api::config::Mapping;
 use bootloader_api::BootloaderConfig;
 use x86_64::instructions::hlt;
@@ -101,12 +104,25 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     VFS.init_once(|| {
         let mut vfs = VirtualFileSystem::new();
         let devfs = Devfs::new(console, 1);
-        let initrd = Initrd::from_files(2, vec![("hello_world.txt", "Hello from initrd!")]);
+        let initrd = Initrd::from_files(
+            2,
+            vec![("hello_world.txt", "Hello from initrd!".as_bytes())],
+        );
         vfs.mount(1, Box::new(devfs), "dev", 0).unwrap();
         vfs.mount(2, Box::new(initrd), "init", 0).unwrap();
         vfs
     });
     kernel_log!("VFS initialised");
+
+    let inode = VFS
+        .get()
+        .unwrap()
+        .traverse_fs(VFS.get().unwrap().root.clone(), "/init/hello_world.txt")
+        .unwrap();
+    let mut contents = vec![0u8; inode.size];
+    VFS.get().unwrap().read(inode, 0, &mut contents).unwrap();
+
+    kernel_log!("{:?}", str::from_utf8(contents.as_slice()));
 
     kernel_log!("Allocating userspace...");
     let user_process = unsafe {

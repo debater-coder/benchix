@@ -15,7 +15,7 @@ pub struct Initrd {
 }
 
 impl Initrd {
-    pub fn from_files(dev: u32, files: Vec<(&str, &str)>) -> Self {
+    pub fn from_files(dev: u32, files: Vec<(&str, &'static [u8])>) -> Self {
         let mut map: BTreeMap<u32, Arc<Inode>> = BTreeMap::new();
 
         map.insert(
@@ -51,7 +51,7 @@ impl Initrd {
                     size: contents.len(),
                     major: None,
                     minor: None,
-                    inner: Some(Box::new(contents.to_string())),
+                    inner: Some(Box::new(*contents)),
                 }),
             );
         }
@@ -84,10 +84,10 @@ impl Filesystem for Initrd {
             .inner
             .as_ref()
             .ok_or(FilesystemError::WrongType)?
-            .downcast_ref::<String>()
-            .ok_or(FilesystemError::WrongType)?
-            .as_bytes();
-        buffer.copy_from_slice(&contents[offset..(offset + buffer.len())]);
+            .downcast_ref::<&'static [u8]>()
+            .ok_or(FilesystemError::WrongType)?;
+        let contents = &contents[offset..(offset + buffer.len()).min(inode.size)];
+        buffer[..contents.len()].copy_from_slice(contents);
         Ok(buffer.len())
     }
 
