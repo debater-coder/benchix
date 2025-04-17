@@ -1,5 +1,6 @@
 use core::{
     arch::{asm, naked_asm},
+    iter::zip,
     mem::transmute,
     ptr, slice,
 };
@@ -99,15 +100,96 @@ impl UserProcess {
             let segment_type = header.segment_type as u32;
             let segment_flags = (header.segment_type >> 32) as u32;
 
+            if segment_type != 1 {
+                // We only care about P_LOAD
+                continue;
+            }
+
             kernel_log!(
-                "type: {:?} flags: {:?} other: {:?}",
+                "type: {:?} flags: {:?} other: {:x?}",
                 segment_type,
                 segment_flags,
                 header
             );
+
+            let exectuable = (segment_flags & 1) > 0;
+            let writable = (segment_flags & 2) > 0;
+            let readable = (segment_flags & 4) > 0;
+
+            let contents =
+                &binary[(header.offset as usize)..(header.offset + header.image_size) as usize];
+
+            let num_frames = header.mem_size.div_ceil(0x1000);
+            for i in 0..num_frames {
+                let frame = pmm.allocate_frame().expect("Could not allocate frame.");
+
+                let page = Page::<Size4KiB>::containing_address(VirtAddr::new(
+                    header.virtual_address + i * 0x1000,
+                ));
+
+                // Since some pages will be read-only, we must write to the frame using the kernel's mappings, not the userspace mappings.
+                let frame_offset = header.offset % 0x1000;
+                let src = &contents
+                    [(i as usize * 0x1000)..((i + 1) as usize * 0x1000).min(contents.len())];
+                let dst: &mut [u8] = unsafe {
+                    slice::from_raw_parts_mut(
+                        (mapper.phys_offset() + frame.start_address().as_u64() + frame_offset)
+                            .as_mut_ptr(),
+                        src.len(),
+                    )
+                };
+
+                dst.copy_from_slice(src);
+
+                // Create mappings
+                unsafe {
+                    mapper
+                        .map_to(
+                            page,
+                            frame,
+                            PageTableFlags::PRESENT
+                                | (if readable {
+                                    PageTableFlags::USER_ACCESSIBLE
+                                } else {
+                                    PageTableFlags::empty()
+                                })
+                                | (if writable {
+                                    PageTableFlags::WRITABLE
+                                } else {
+                                    PageTableFlags::empty()
+                                })
+                                | (if exectuable {
+                                    PageTableFlags::empty()
+                                } else {
+                                    PageTableFlags::NO_EXECUTE
+                                }),
+                            pmm,
+                        )
+                        .expect("Failed to create mappings")
+                        .flush();
+                };
+            }
+        }
+        kernel_log!("Mappings have been created.");
+
+        let stack_end = VirtAddr::new(0x7fff_ffff_0000);
+        let stack_content = [0u8; 4 * 0x1000];
+        let stack_start = stack_end - stack_content.len() as u64 + 1;
+        let stack_range = Page::range_inclusive(
+            Page::<Size4KiB>::containing_address(stack_start),
+            Page::<Size4KiB>::containing_address(stack_end),
+        );
+        unsafe {
+            for page in stack_range {
+                allocate_user_page(mapper, pmm, page, PageTableFlags::NO_EXECUTE);
+            }
         }
 
-        panic!("This worked fine.");
+        Ok(UserProcess {
+            rip: VirtAddr::new(u64::from_ne_bytes(binary[0x18..0x20].try_into().unwrap())),
+            kstack: vec![0; 2 * 4096],
+            stack: stack_end,
+        })
     }
 
     // pub fn new(
@@ -152,12 +234,11 @@ impl UserProcess {
     // }
 
     pub fn switch(&self) {
+        kernel_log!("Sysret'ing to executable entry point: {:?}", self.rip);
         unsafe {
             x86_64::instructions::interrupts::disable(); // To avoid handling interrupts with user stack
                                                          // Switch kernel stack
             let top = VirtAddr::from_ptr(&self.kstack.last());
-            let bottom = VirtAddr::from_ptr(&self.kstack);
-            kernel_log!("top: {:?}, bottom: {:?}", top, bottom);
             CPUS.get().unwrap().get_cpu().set_kernel_stack(top);
             asm!(
                 "mov rsp, {}", // Stacks grow downwards

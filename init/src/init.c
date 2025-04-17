@@ -1,5 +1,9 @@
 #include <stdio.h>
+#include <fcntl.h>
+#include <assert.h>
+#include <unistd.h>
 
-int main() {
-    printf("Hello, World!\n");
+void _start() {
+    for (;;) {
+    }
 }
