@@ -1,0 +1,473 @@
+execve("/home/hamzah/.nix-profile/bin/init", ["init"], 0x7ffeb45bcd20 /* 157 vars */) = 0
+brk(NULL)                               = 0x5653519ad000
+mmap(NULL, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7ff108613000
+access("/etc/ld-nix.so.preload", R_OK)  = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/57rayvb28n66prgyavcbz2kk1qv3zydw-systemd-257.3/lib/systemd/glibc-hwcaps/x86-64-v3/libsystemd-core-257.so", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+newfstatat(AT_FDCWD, "/nix/store/57rayvb28n66prgyavcbz2kk1qv3zydw-systemd-257.3/lib/systemd/glibc-hwcaps/x86-64-v3/", 0x7fff2cd9d7f0, 0) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/57rayvb28n66prgyavcbz2kk1qv3zydw-systemd-257.3/lib/systemd/glibc-hwcaps/x86-64-v2/libsystemd-core-257.so", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+newfstatat(AT_FDCWD, "/nix/store/57rayvb28n66prgyavcbz2kk1qv3zydw-systemd-257.3/lib/systemd/glibc-hwcaps/x86-64-v2/", 0x7fff2cd9d7f0, 0) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/57rayvb28n66prgyavcbz2kk1qv3zydw-systemd-257.3/lib/systemd/libsystemd-core-257.so", O_RDONLY|O_CLOEXEC) = 4
+read(4, "\177ELF\2\1\1\0\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\0\0\0\0\0\0\0\0"..., 832) = 832
+fstat(4, {st_mode=S_IFREG|0555, st_size=2763096, ...}) = 0
+mmap(NULL, 2546008, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 4, 0) = 0x7ff108200000
+mmap(0x7ff108252000, 1187840, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0x52000) = 0x7ff108252000
+mmap(0x7ff108374000, 483328, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0x174000) = 0x7ff108374000
+mmap(0x7ff1083ea000, 475136, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0x1e9000) = 0x7ff1083ea000
+mmap(0x7ff10845e000, 65536, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0x293000) = 0x7ff10845e000
+close(4)                                = 0
+openat(AT_FDCWD, "/nix/store/57rayvb28n66prgyavcbz2kk1qv3zydw-systemd-257.3/lib/systemd/libsystemd-shared-257.so", O_RDONLY|O_CLOEXEC) = 4
+read(4, "\177ELF\2\1\1\0\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\0\0\0\0\0\0\0\0"..., 832) = 832
+pread64(4, "\1\0\0\0\4\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"..., 784, 64) = 784
+fstat(4, {st_mode=S_IFREG|0555, st_size=5241160, ...}) = 0
+pread64(4, "\1\0\0\0\4\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"..., 784, 64) = 784
+mmap(NULL, 4761928, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 4, 0) = 0x7ff107c00000
+mprotect(0x7ff107c90000, 4042752, PROT_NONE) = 0
+mmap(0x7ff107c90000, 2822144, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0x90000) = 0x7ff107c90000
+mmap(0x7ff107f41000, 1019904, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0x341000) = 0x7ff107f41000
+mmap(0x7ff10803a000, 196608, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0x439000) = 0x7ff10803a000
+mmap(0x7ff10806a000, 3312, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_ANONYMOUS, -1, 0) = 0x7ff10806a000
+mmap(0x7ff10806b000, 131072, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0x4e0000) = 0x7ff10806b000
+close(4)                                = 0
+openat(AT_FDCWD, "/nix/store/57rayvb28n66prgyavcbz2kk1qv3zydw-systemd-257.3/lib/systemd/libapparmor.so.1", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/h6cc45nk1lrwv0krzs21spijbhvr9kxh-libapparmor-4.0.3/lib/glibc-hwcaps/x86-64-v3/libapparmor.so.1", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+newfstatat(AT_FDCWD, "/nix/store/h6cc45nk1lrwv0krzs21spijbhvr9kxh-libapparmor-4.0.3/lib/glibc-hwcaps/x86-64-v3/", 0x7fff2cd9d7b0, 0) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/h6cc45nk1lrwv0krzs21spijbhvr9kxh-libapparmor-4.0.3/lib/glibc-hwcaps/x86-64-v2/libapparmor.so.1", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+newfstatat(AT_FDCWD, "/nix/store/h6cc45nk1lrwv0krzs21spijbhvr9kxh-libapparmor-4.0.3/lib/glibc-hwcaps/x86-64-v2/", 0x7fff2cd9d7b0, 0) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/h6cc45nk1lrwv0krzs21spijbhvr9kxh-libapparmor-4.0.3/lib/libapparmor.so.1", O_RDONLY|O_CLOEXEC) = 4
+read(4, "\177ELF\2\1\1\0\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\0\0\0\0\0\0\0\0"..., 832) = 832
+fstat(4, {st_mode=S_IFREG|0555, st_size=101816, ...}) = 0
+mmap(NULL, 86960, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 4, 0) = 0x7ff1085fd000
+mmap(0x7ff108601000, 36864, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0x4000) = 0x7ff108601000
+mmap(0x7ff10860a000, 28672, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0xd000) = 0x7ff10860a000
+mmap(0x7ff108611000, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0x14000) = 0x7ff108611000
+close(4)                                = 0
+openat(AT_FDCWD, "/nix/store/57rayvb28n66prgyavcbz2kk1qv3zydw-systemd-257.3/lib/systemd/libc.so.6", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/h6cc45nk1lrwv0krzs21spijbhvr9kxh-libapparmor-4.0.3/lib/libc.so.6", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/cmpyglinc9xl9pr4ymx8akl286ygl64x-glibc-2.40-66/lib/glibc-hwcaps/x86-64-v3/libc.so.6", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+newfstatat(AT_FDCWD, "/nix/store/cmpyglinc9xl9pr4ymx8akl286ygl64x-glibc-2.40-66/lib/glibc-hwcaps/x86-64-v3/", 0x7fff2cd9d790, 0) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/cmpyglinc9xl9pr4ymx8akl286ygl64x-glibc-2.40-66/lib/glibc-hwcaps/x86-64-v2/libc.so.6", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+newfstatat(AT_FDCWD, "/nix/store/cmpyglinc9xl9pr4ymx8akl286ygl64x-glibc-2.40-66/lib/glibc-hwcaps/x86-64-v2/", 0x7fff2cd9d790, 0) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/cmpyglinc9xl9pr4ymx8akl286ygl64x-glibc-2.40-66/lib/libc.so.6", O_RDONLY|O_CLOEXEC) = 4
+read(4, "\177ELF\2\1\1\3\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\300\243\2\0\0\0\0\0"..., 832) = 832
+pread64(4, "\6\0\0\0\4\0\0\0@\0\0\0\0\0\0\0@\0\0\0\0\0\0\0@\0\0\0\0\0\0\0"..., 784, 64) = 784
+fstat(4, {st_mode=S_IFREG|0555, st_size=2388416, ...}) = 0
+pread64(4, "\6\0\0\0\4\0\0\0@\0\0\0\0\0\0\0@\0\0\0\0\0\0\0@\0\0\0\0\0\0\0"..., 784, 64) = 784
+mmap(NULL, 2121176, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 4, 0) = 0x7ff107800000
+mmap(0x7ff107828000, 1527808, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0x28000) = 0x7ff107828000
+mmap(0x7ff10799d000, 352256, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0x19d000) = 0x7ff10799d000
+mmap(0x7ff1079f3000, 24576, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0x1f2000) = 0x7ff1079f3000
+mmap(0x7ff1079f9000, 52696, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_ANONYMOUS, -1, 0) = 0x7ff1079f9000
+close(4)                                = 0
+openat(AT_FDCWD, "/nix/store/57rayvb28n66prgyavcbz2kk1qv3zydw-systemd-257.3/lib/systemd/libaudit.so.1", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/n6ip18jq9izn2mbv9gi0rxfnxhlgbr6x-audit-4.0.3-lib/lib/glibc-hwcaps/x86-64-v3/libaudit.so.1", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+newfstatat(AT_FDCWD, "/nix/store/n6ip18jq9izn2mbv9gi0rxfnxhlgbr6x-audit-4.0.3-lib/lib/glibc-hwcaps/x86-64-v3/", 0x7fff2cd9d770, 0) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/n6ip18jq9izn2mbv9gi0rxfnxhlgbr6x-audit-4.0.3-lib/lib/glibc-hwcaps/x86-64-v2/libaudit.so.1", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+newfstatat(AT_FDCWD, "/nix/store/n6ip18jq9izn2mbv9gi0rxfnxhlgbr6x-audit-4.0.3-lib/lib/glibc-hwcaps/x86-64-v2/", 0x7fff2cd9d770, 0) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/n6ip18jq9izn2mbv9gi0rxfnxhlgbr6x-audit-4.0.3-lib/lib/libaudit.so.1", O_RDONLY|O_CLOEXEC) = 4
+read(4, "\177ELF\2\1\1\0\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\0\0\0\0\0\0\0\0"..., 832) = 832
+fstat(4, {st_mode=S_IFREG|0555, st_size=169864, ...}) = 0
+mmap(NULL, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7ff1085fb000
+mmap(NULL, 225488, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 4, 0) = 0x7ff1085c3000
+mmap(0x7ff1085c7000, 49152, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0x4000) = 0x7ff1085c7000
+mmap(0x7ff1085d3000, 90112, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0x10000) = 0x7ff1085d3000
+mmap(0x7ff1085e9000, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0x25000) = 0x7ff1085e9000
+mmap(0x7ff1085eb000, 61648, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_ANONYMOUS, -1, 0) = 0x7ff1085eb000
+close(4)                                = 0
+openat(AT_FDCWD, "/nix/store/57rayvb28n66prgyavcbz2kk1qv3zydw-systemd-257.3/lib/systemd/libm.so.6", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/n6ip18jq9izn2mbv9gi0rxfnxhlgbr6x-audit-4.0.3-lib/lib/libm.so.6", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/cmpyglinc9xl9pr4ymx8akl286ygl64x-glibc-2.40-66/lib/libm.so.6", O_RDONLY|O_CLOEXEC) = 4
+read(4, "\177ELF\2\1\1\3\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\0\0\0\0\0\0\0\0"..., 832) = 832
+fstat(4, {st_mode=S_IFREG|0555, st_size=1037328, ...}) = 0
+mmap(NULL, 950296, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 4, 0) = 0x7ff1084da000
+mmap(0x7ff1084ea000, 512000, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0x10000) = 0x7ff1084ea000
+mmap(0x7ff108567000, 368640, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0x8d000) = 0x7ff108567000
+mmap(0x7ff1085c1000, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0xe7000) = 0x7ff1085c1000
+close(4)                                = 0
+openat(AT_FDCWD, "/nix/store/57rayvb28n66prgyavcbz2kk1qv3zydw-systemd-257.3/lib/systemd/libmount.so.1", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/n6ip18jq9izn2mbv9gi0rxfnxhlgbr6x-audit-4.0.3-lib/lib/libmount.so.1", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/cmpyglinc9xl9pr4ymx8akl286ygl64x-glibc-2.40-66/lib/libmount.so.1", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/3d60537nh7nf44qvlkgy1m3qddb4q8zx-util-linux-minimal-2.40.4-lib/lib/glibc-hwcaps/x86-64-v3/libmount.so.1", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+newfstatat(AT_FDCWD, "/nix/store/3d60537nh7nf44qvlkgy1m3qddb4q8zx-util-linux-minimal-2.40.4-lib/lib/glibc-hwcaps/x86-64-v3/", 0x7fff2cd9d730, 0) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/3d60537nh7nf44qvlkgy1m3qddb4q8zx-util-linux-minimal-2.40.4-lib/lib/glibc-hwcaps/x86-64-v2/libmount.so.1", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+newfstatat(AT_FDCWD, "/nix/store/3d60537nh7nf44qvlkgy1m3qddb4q8zx-util-linux-minimal-2.40.4-lib/lib/glibc-hwcaps/x86-64-v2/", 0x7fff2cd9d730, 0) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/3d60537nh7nf44qvlkgy1m3qddb4q8zx-util-linux-minimal-2.40.4-lib/lib/libmount.so.1", O_RDONLY|O_CLOEXEC) = 4
+read(4, "\177ELF\2\1\1\0\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\0\0\0\0\0\0\0\0"..., 832) = 832
+fstat(4, {st_mode=S_IFREG|0555, st_size=532800, ...}) = 0
+mmap(NULL, 475720, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 4, 0) = 0x7ff10818b000
+mmap(0x7ff108198000, 315392, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0xd000) = 0x7ff108198000
+mmap(0x7ff1081e5000, 94208, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0x5a000) = 0x7ff1081e5000
+mmap(0x7ff1081fc000, 16384, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0x70000) = 0x7ff1081fc000
+close(4)                                = 0
+openat(AT_FDCWD, "/nix/store/57rayvb28n66prgyavcbz2kk1qv3zydw-systemd-257.3/lib/systemd/libseccomp.so.2", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/n6ip18jq9izn2mbv9gi0rxfnxhlgbr6x-audit-4.0.3-lib/lib/libseccomp.so.2", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/cmpyglinc9xl9pr4ymx8akl286ygl64x-glibc-2.40-66/lib/libseccomp.so.2", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/3d60537nh7nf44qvlkgy1m3qddb4q8zx-util-linux-minimal-2.40.4-lib/lib/libseccomp.so.2", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/xqq7r9qq25k6vbjmv2nlg9aafy1s1dq5-libseccomp-2.6.0-lib/lib/glibc-hwcaps/x86-64-v3/libseccomp.so.2", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+newfstatat(AT_FDCWD, "/nix/store/xqq7r9qq25k6vbjmv2nlg9aafy1s1dq5-libseccomp-2.6.0-lib/lib/glibc-hwcaps/x86-64-v3/", 0x7fff2cd9d710, 0) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/xqq7r9qq25k6vbjmv2nlg9aafy1s1dq5-libseccomp-2.6.0-lib/lib/glibc-hwcaps/x86-64-v2/libseccomp.so.2", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+newfstatat(AT_FDCWD, "/nix/store/xqq7r9qq25k6vbjmv2nlg9aafy1s1dq5-libseccomp-2.6.0-lib/lib/glibc-hwcaps/x86-64-v2/", 0x7fff2cd9d710, 0) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/xqq7r9qq25k6vbjmv2nlg9aafy1s1dq5-libseccomp-2.6.0-lib/lib/libseccomp.so.2", O_RDONLY|O_CLOEXEC) = 4
+read(4, "\177ELF\2\1\1\0\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\0\0\0\0\0\0\0\0"..., 832) = 832
+fstat(4, {st_mode=S_IFREG|0555, st_size=196256, ...}) = 0
+mmap(NULL, 184448, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 4, 0) = 0x7ff1084ac000
+mmap(0x7ff1084af000, 61440, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0x3000) = 0x7ff1084af000
+mmap(0x7ff1084be000, 106496, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0x12000) = 0x7ff1084be000
+mmap(0x7ff1084d8000, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0x2b000) = 0x7ff1084d8000
+close(4)                                = 0
+mmap(NULL, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7ff1084aa000
+openat(AT_FDCWD, "/nix/store/2dc40slfyaxqmap48ji88c6p3mgbl7vn-acl-2.3.2/lib/glibc-hwcaps/x86-64-v3/libacl.so.1", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+newfstatat(AT_FDCWD, "/nix/store/2dc40slfyaxqmap48ji88c6p3mgbl7vn-acl-2.3.2/lib/glibc-hwcaps/x86-64-v3/", 0x7fff2cd9d6f0, 0) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/2dc40slfyaxqmap48ji88c6p3mgbl7vn-acl-2.3.2/lib/glibc-hwcaps/x86-64-v2/libacl.so.1", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+newfstatat(AT_FDCWD, "/nix/store/2dc40slfyaxqmap48ji88c6p3mgbl7vn-acl-2.3.2/lib/glibc-hwcaps/x86-64-v2/", 0x7fff2cd9d6f0, 0) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/2dc40slfyaxqmap48ji88c6p3mgbl7vn-acl-2.3.2/lib/libacl.so.1", O_RDONLY|O_CLOEXEC) = 4
+read(4, "\177ELF\2\1\1\0\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\0\0\0\0\0\0\0\0"..., 832) = 832
+fstat(4, {st_mode=S_IFREG|0555, st_size=44416, ...}) = 0
+mmap(NULL, 41008, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 4, 0) = 0x7ff10849f000
+mmap(0x7ff1084a1000, 20480, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0x2000) = 0x7ff1084a1000
+mmap(0x7ff1084a6000, 8192, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0x7000) = 0x7ff1084a6000
+mmap(0x7ff1084a8000, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0x8000) = 0x7ff1084a8000
+close(4)                                = 0
+openat(AT_FDCWD, "/nix/store/2dc40slfyaxqmap48ji88c6p3mgbl7vn-acl-2.3.2/lib/libblkid.so.1", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/3d60537nh7nf44qvlkgy1m3qddb4q8zx-util-linux-minimal-2.40.4-lib/lib/libblkid.so.1", O_RDONLY|O_CLOEXEC) = 4
+read(4, "\177ELF\2\1\1\0\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\0\0\0\0\0\0\0\0"..., 832) = 832
+fstat(4, {st_mode=S_IFREG|0555, st_size=451360, ...}) = 0
+mmap(NULL, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7ff10849d000
+mmap(NULL, 398272, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 4, 0) = 0x7ff108129000
+mmap(0x7ff108133000, 253952, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0xa000) = 0x7ff108133000
+mmap(0x7ff108171000, 77824, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0x48000) = 0x7ff108171000
+mmap(0x7ff108184000, 28672, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0x5b000) = 0x7ff108184000
+close(4)                                = 0
+openat(AT_FDCWD, "/nix/store/2dc40slfyaxqmap48ji88c6p3mgbl7vn-acl-2.3.2/lib/libcap.so.2", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/3d60537nh7nf44qvlkgy1m3qddb4q8zx-util-linux-minimal-2.40.4-lib/lib/libcap.so.2", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/fkhf638ik2wawnps2p4iz14ps8yr91xi-libcap-2.73-lib/lib/glibc-hwcaps/x86-64-v3/libcap.so.2", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+newfstatat(AT_FDCWD, "/nix/store/fkhf638ik2wawnps2p4iz14ps8yr91xi-libcap-2.73-lib/lib/glibc-hwcaps/x86-64-v3/", 0x7fff2cd9d6b0, 0) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/fkhf638ik2wawnps2p4iz14ps8yr91xi-libcap-2.73-lib/lib/glibc-hwcaps/x86-64-v2/libcap.so.2", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+newfstatat(AT_FDCWD, "/nix/store/fkhf638ik2wawnps2p4iz14ps8yr91xi-libcap-2.73-lib/lib/glibc-hwcaps/x86-64-v2/", 0x7fff2cd9d6b0, 0) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/fkhf638ik2wawnps2p4iz14ps8yr91xi-libcap-2.73-lib/lib/libcap.so.2", O_RDONLY|O_CLOEXEC) = 4
+read(4, "\177ELF\2\1\1\0\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0p~\0\0\0\0\0\0"..., 832) = 832
+fstat(4, {st_mode=S_IFREG|0555, st_size=56768, ...}) = 0
+mmap(NULL, 49224, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 4, 0) = 0x7ff108490000
+mmap(0x7ff108493000, 24576, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0x3000) = 0x7ff108493000
+mmap(0x7ff108499000, 8192, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0x9000) = 0x7ff108499000
+mmap(0x7ff10849b000, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0xb000) = 0x7ff10849b000
+close(4)                                = 0
+openat(AT_FDCWD, "/nix/store/2dc40slfyaxqmap48ji88c6p3mgbl7vn-acl-2.3.2/lib/libcrypt.so.2", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/3d60537nh7nf44qvlkgy1m3qddb4q8zx-util-linux-minimal-2.40.4-lib/lib/libcrypt.so.2", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/fkhf638ik2wawnps2p4iz14ps8yr91xi-libcap-2.73-lib/lib/libcrypt.so.2", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/h8wi6kwl1cywxr3f22836vgrrb11fvlb-libxcrypt-4.4.38/lib/glibc-hwcaps/x86-64-v3/libcrypt.so.2", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+newfstatat(AT_FDCWD, "/nix/store/h8wi6kwl1cywxr3f22836vgrrb11fvlb-libxcrypt-4.4.38/lib/glibc-hwcaps/x86-64-v3/", 0x7fff2cd9d690, 0) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/h8wi6kwl1cywxr3f22836vgrrb11fvlb-libxcrypt-4.4.38/lib/glibc-hwcaps/x86-64-v2/libcrypt.so.2", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+newfstatat(AT_FDCWD, "/nix/store/h8wi6kwl1cywxr3f22836vgrrb11fvlb-libxcrypt-4.4.38/lib/glibc-hwcaps/x86-64-v2/", 0x7fff2cd9d690, 0) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/h8wi6kwl1cywxr3f22836vgrrb11fvlb-libxcrypt-4.4.38/lib/libcrypt.so.2", O_RDONLY|O_CLOEXEC) = 4
+read(4, "\177ELF\2\1\1\0\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\0\0\0\0\0\0\0\0"..., 832) = 832
+fstat(4, {st_mode=S_IFREG|0555, st_size=115864, ...}) = 0
+mmap(NULL, 143904, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 4, 0) = 0x7ff108105000
+mmap(0x7ff108107000, 65536, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0x2000) = 0x7ff108107000
+mmap(0x7ff108117000, 32768, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0x12000) = 0x7ff108117000
+mmap(0x7ff10811f000, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0x19000) = 0x7ff10811f000
+mmap(0x7ff108121000, 29216, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_ANONYMOUS, -1, 0) = 0x7ff108121000
+close(4)                                = 0
+openat(AT_FDCWD, "/nix/store/2dc40slfyaxqmap48ji88c6p3mgbl7vn-acl-2.3.2/lib/libcrypto.so.3", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/3d60537nh7nf44qvlkgy1m3qddb4q8zx-util-linux-minimal-2.40.4-lib/lib/libcrypto.so.3", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/fkhf638ik2wawnps2p4iz14ps8yr91xi-libcap-2.73-lib/lib/libcrypto.so.3", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/h8wi6kwl1cywxr3f22836vgrrb11fvlb-libxcrypt-4.4.38/lib/libcrypto.so.3", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/99cizfcv53x3mjb15cx7kmdxsglp17hc-openssl-3.4.1/lib/glibc-hwcaps/x86-64-v3/libcrypto.so.3", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+newfstatat(AT_FDCWD, "/nix/store/99cizfcv53x3mjb15cx7kmdxsglp17hc-openssl-3.4.1/lib/glibc-hwcaps/x86-64-v3/", 0x7fff2cd9d670, 0) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/99cizfcv53x3mjb15cx7kmdxsglp17hc-openssl-3.4.1/lib/glibc-hwcaps/x86-64-v2/libcrypto.so.3", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+newfstatat(AT_FDCWD, "/nix/store/99cizfcv53x3mjb15cx7kmdxsglp17hc-openssl-3.4.1/lib/glibc-hwcaps/x86-64-v2/", 0x7fff2cd9d670, 0) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/99cizfcv53x3mjb15cx7kmdxsglp17hc-openssl-3.4.1/lib/libcrypto.so.3", O_RDONLY|O_CLOEXEC) = 4
+read(4, "\177ELF\2\1\1\0\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\0\0\0\0\0\0\0\0"..., 832) = 832
+fstat(4, {st_mode=S_IFREG|0555, st_size=6630688, ...}) = 0
+mmap(NULL, 5957328, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 4, 0) = 0x7ff107200000
+mmap(0x7ff1072cd000, 3534848, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0xcd000) = 0x7ff1072cd000
+mmap(0x7ff10762c000, 1146880, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0x42c000) = 0x7ff10762c000
+mmap(0x7ff107744000, 425984, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0x543000) = 0x7ff107744000
+mmap(0x7ff1077ac000, 9936, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_ANONYMOUS, -1, 0) = 0x7ff1077ac000
+close(4)                                = 0
+openat(AT_FDCWD, "/nix/store/2dc40slfyaxqmap48ji88c6p3mgbl7vn-acl-2.3.2/lib/libpam.so.0", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/3d60537nh7nf44qvlkgy1m3qddb4q8zx-util-linux-minimal-2.40.4-lib/lib/libpam.so.0", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/fkhf638ik2wawnps2p4iz14ps8yr91xi-libcap-2.73-lib/lib/libpam.so.0", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/h8wi6kwl1cywxr3f22836vgrrb11fvlb-libxcrypt-4.4.38/lib/libpam.so.0", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/99cizfcv53x3mjb15cx7kmdxsglp17hc-openssl-3.4.1/lib/libpam.so.0", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/g928dngdfy30jyi1cs2m2a5wfimxgnkr-linux-pam-1.6.1/lib/glibc-hwcaps/x86-64-v3/libpam.so.0", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+newfstatat(AT_FDCWD, "/nix/store/g928dngdfy30jyi1cs2m2a5wfimxgnkr-linux-pam-1.6.1/lib/glibc-hwcaps/x86-64-v3/", 0x7fff2cd9d650, 0) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/g928dngdfy30jyi1cs2m2a5wfimxgnkr-linux-pam-1.6.1/lib/glibc-hwcaps/x86-64-v2/libpam.so.0", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+newfstatat(AT_FDCWD, "/nix/store/g928dngdfy30jyi1cs2m2a5wfimxgnkr-linux-pam-1.6.1/lib/glibc-hwcaps/x86-64-v2/", 0x7fff2cd9d650, 0) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/g928dngdfy30jyi1cs2m2a5wfimxgnkr-linux-pam-1.6.1/lib/libpam.so.0", O_RDONLY|O_CLOEXEC) = 4
+read(4, "\177ELF\2\1\1\0\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\0\0\0\0\0\0\0\0"..., 832) = 832
+fstat(4, {st_mode=S_IFREG|0555, st_size=76408, ...}) = 0
+mmap(NULL, 69656, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 4, 0) = 0x7ff10847e000
+mmap(0x7ff108481000, 36864, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0x3000) = 0x7ff108481000
+mmap(0x7ff10848a000, 16384, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0xc000) = 0x7ff10848a000
+mmap(0x7ff10848e000, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0xf000) = 0x7ff10848e000
+close(4)                                = 0
+openat(AT_FDCWD, "/nix/store/cmpyglinc9xl9pr4ymx8akl286ygl64x-glibc-2.40-66/lib/libpthread.so.0", O_RDONLY|O_CLOEXEC) = 4
+read(4, "\177ELF\2\1\1\0\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\0\0\0\0\0\0\0\0"..., 832) = 832
+fstat(4, {st_mode=S_IFREG|0555, st_size=16544, ...}) = 0
+mmap(NULL, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7ff10847c000
+mmap(NULL, 16400, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 4, 0) = 0x7ff108477000
+mmap(0x7ff108478000, 4096, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0x1000) = 0x7ff108478000
+mmap(0x7ff108479000, 4096, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0x2000) = 0x7ff108479000
+mmap(0x7ff10847a000, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0x2000) = 0x7ff10847a000
+close(4)                                = 0
+openat(AT_FDCWD, "/nix/store/4a6p9r823ih59vkhcznjznri9gan9565-attr-2.5.2/lib/glibc-hwcaps/x86-64-v3/libattr.so.1", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+newfstatat(AT_FDCWD, "/nix/store/4a6p9r823ih59vkhcznjznri9gan9565-attr-2.5.2/lib/glibc-hwcaps/x86-64-v3/", 0x7fff2cd9d5f0, 0) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/4a6p9r823ih59vkhcznjznri9gan9565-attr-2.5.2/lib/glibc-hwcaps/x86-64-v2/libattr.so.1", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+newfstatat(AT_FDCWD, "/nix/store/4a6p9r823ih59vkhcznjznri9gan9565-attr-2.5.2/lib/glibc-hwcaps/x86-64-v2/", 0x7fff2cd9d5f0, 0) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/nix/store/4a6p9r823ih59vkhcznjznri9gan9565-attr-2.5.2/lib/libattr.so.1", O_RDONLY|O_CLOEXEC) = 4
+read(4, "\177ELF\2\1\1\0\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\0\0\0\0\0\0\0\0"..., 832) = 832
+fstat(4, {st_mode=S_IFREG|0555, st_size=30632, ...}) = 0
+mmap(NULL, 28696, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 4, 0) = 0x7ff10846f000
+mmap(0x7ff108471000, 12288, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0x2000) = 0x7ff108471000
+mmap(0x7ff108474000, 4096, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0x5000) = 0x7ff108474000
+mmap(0x7ff108475000, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0x5000) = 0x7ff108475000
+close(4)                                = 0
+openat(AT_FDCWD, "/nix/store/cmpyglinc9xl9pr4ymx8akl286ygl64x-glibc-2.40-66/lib/libdl.so.2", O_RDONLY|O_CLOEXEC) = 4
+read(4, "\177ELF\2\1\1\0\0\0\0\0\0\0\0\0\3\0>\0\1\0\0\0\0\0\0\0\0\0\0\0"..., 832) = 832
+fstat(4, {st_mode=S_IFREG|0555, st_size=15696, ...}) = 0
+mmap(NULL, 16400, PROT_READ, MAP_PRIVATE|MAP_DENYWRITE, 4, 0) = 0x7ff108100000
+mmap(0x7ff108101000, 4096, PROT_READ|PROT_EXEC, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0x1000) = 0x7ff108101000
+mmap(0x7ff108102000, 4096, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0x2000) = 0x7ff108102000
+mmap(0x7ff108103000, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, 4, 0x2000) = 0x7ff108103000
+close(4)                                = 0
+mmap(NULL, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7ff1080fe000
+mmap(NULL, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7ff1080fc000
+arch_prctl(ARCH_SET_FS, 0x7ff1080fcc80) = 0
+set_tid_address(0x7ff1080fcf50)         = 85490
+set_robust_list(0x7ff1080fcf60, 24)     = 0
+rseq(0x7ff1080fd5a0, 0x20, 0, 0x53053053) = 0
+mprotect(0x7ff1079f3000, 16384, PROT_READ) = 0
+mprotect(0x7ff108103000, 4096, PROT_READ) = 0
+mprotect(0x7ff108475000, 4096, PROT_READ) = 0
+mprotect(0x7ff10847a000, 4096, PROT_READ) = 0
+mprotect(0x7ff1085e9000, 4096, PROT_READ) = 0
+mprotect(0x7ff10848e000, 4096, PROT_READ) = 0
+mprotect(0x7ff107744000, 413696, PROT_READ) = 0
+mprotect(0x7ff10811f000, 4096, PROT_READ) = 0
+mprotect(0x7ff10849b000, 4096, PROT_READ) = 0
+mprotect(0x7ff108184000, 24576, PROT_READ) = 0
+mprotect(0x7ff1084a8000, 4096, PROT_READ) = 0
+mprotect(0x7ff1084d8000, 4096, PROT_READ) = 0
+mprotect(0x7ff1081fc000, 12288, PROT_READ) = 0
+mprotect(0x7ff1085c1000, 4096, PROT_READ) = 0
+mprotect(0x7ff108611000, 4096, PROT_READ) = 0
+mprotect(0x7ff10803a000, 188416, PROT_READ) = 0
+mprotect(0x7ff1083ea000, 471040, PROT_READ) = 0
+mprotect(0x565342701000, 8192, PROT_READ) = 0
+mprotect(0x7ff108651000, 8192, PROT_READ) = 0
+prlimit64(0, RLIMIT_STACK, NULL, {rlim_cur=8192*1024, rlim_max=RLIM64_INFINITY}) = 0
+prctl(PR_CAPBSET_READ, CAP_MAC_OVERRIDE) = 1
+prctl(PR_CAPBSET_READ, 0x30 /* CAP_??? */) = -1 EINVAL (Invalid argument)
+prctl(PR_CAPBSET_READ, CAP_CHECKPOINT_RESTORE) = 1
+prctl(PR_CAPBSET_READ, 0x2c /* CAP_??? */) = -1 EINVAL (Invalid argument)
+prctl(PR_CAPBSET_READ, 0x2a /* CAP_??? */) = -1 EINVAL (Invalid argument)
+prctl(PR_CAPBSET_READ, 0x29 /* CAP_??? */) = -1 EINVAL (Invalid argument)
+prctl(PR_SET_NAME, "systemd")           = 0
+getrandom("\x45\xe8\x50\xb9\xf6\xa4\xd4\x89", 8, GRND_NONBLOCK) = 8
+brk(NULL)                               = 0x5653519ad000
+brk(0x5653519ce000)                     = 0x5653519ce000
+getpid()                                = 85490
+openat(AT_FDCWD, "/dev/console", O_WRONLY|O_NOCTTY|O_CLOEXEC) = -1 EACCES (Permission denied)
+access("/sys/fs/smackfs/", F_OK)        = -1 ENOENT (No such file or directory)
+prlimit64(0, RLIMIT_NOFILE, NULL, {rlim_cur=1024, rlim_max=512*1024}) = 0
+prlimit64(0, RLIMIT_MEMLOCK, NULL, {rlim_cur=8192*1024, rlim_max=8192*1024}) = 0
+rt_sigaction(SIGHUP, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGINT, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGQUIT, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGILL, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGTRAP, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGABRT, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGBUS, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGFPE, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGUSR1, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGSEGV, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGUSR2, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGPIPE, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGALRM, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGTERM, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGSTKFLT, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGCHLD, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGCONT, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGTSTP, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGTTIN, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGTTOU, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGURG, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGXCPU, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGXFSZ, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGVTALRM, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGPROF, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGWINCH, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGIO, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGPWR, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGSYS, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGRT_2, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGRT_3, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGRT_4, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGRT_5, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGRT_6, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGRT_7, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGRT_8, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGRT_9, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGRT_10, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGRT_11, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGRT_12, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGRT_13, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGRT_14, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGRT_15, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGRT_16, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGRT_17, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGRT_18, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGRT_19, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGRT_20, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGRT_21, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGRT_22, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGRT_23, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGRT_24, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGRT_25, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGRT_26, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGRT_27, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGRT_28, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGRT_29, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGRT_30, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGRT_31, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGRT_32, {sa_handler=SIG_DFL, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+rt_sigaction(SIGPIPE, {sa_handler=SIG_IGN, sa_mask=[], sa_flags=SA_RESTORER|SA_RESTART, sa_restorer=0x7ff107840f30}, NULL, 8) = 0
+statfs("/sys/fs/cgroup/", {f_type=CGROUP2_SUPER_MAGIC, f_bsize=4096, f_blocks=0, f_bfree=0, f_bavail=0, f_files=0, f_ffree=0, f_fsid={val=[0x23805a91, 0x5bdf54dd]}, f_namelen=255, f_frsize=4096, f_flags=ST_VALID|ST_NOSUID|ST_NODEV|ST_NOEXEC|ST_RELATIME}) = 0
+uname({sysname="Linux", nodename="starscream", ...}) = 0
+openat(AT_FDCWD, "/", O_RDONLY|O_CLOEXEC|O_PATH|O_DIRECTORY) = 4
+openat(4, "..", O_RDONLY|O_CLOEXEC|O_PATH|O_DIRECTORY) = 5
+statx(4, "", AT_STATX_SYNC_AS_STAT|AT_EMPTY_PATH, STATX_TYPE|STATX_INO|STATX_MNT_ID, {stx_mask=STATX_BASIC_STATS|STATX_MNT_ID, stx_attributes=STATX_ATTR_MOUNT_ROOT, stx_mode=S_IFDIR|0755, stx_size=4096, ...}) = 0
+statx(5, "", AT_STATX_SYNC_AS_STAT|AT_EMPTY_PATH, STATX_TYPE|STATX_INO|STATX_MNT_ID, {stx_mask=STATX_BASIC_STATS|STATX_MNT_ID, stx_attributes=STATX_ATTR_MOUNT_ROOT, stx_mode=S_IFDIR|0755, stx_size=4096, ...}) = 0
+close(5)                                = 0
+openat(4, "/", O_RDONLY|O_CLOEXEC|O_PATH|O_DIRECTORY) = 5
+fstat(5, {st_mode=S_IFDIR|0755, st_size=4096, ...}) = 0
+openat(AT_FDCWD, "/", O_RDONLY|O_CLOEXEC|O_PATH|O_DIRECTORY) = 6
+openat(5, "home", O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_PATH) = 7
+fstat(7, {st_mode=S_IFDIR|0755, st_size=4096, ...}) = 0
+close(5)                                = 0
+openat(7, "hamzah", O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_PATH) = 5
+fstat(5, {st_mode=S_IFDIR|0700, st_size=4096, ...}) = 0
+close(7)                                = 0
+openat(5, ".config", O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_PATH) = 7
+fstat(7, {st_mode=S_IFDIR|0700, st_size=4096, ...}) = 0
+close(5)                                = 0
+openat(7, "systemd", O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_PATH) = 5
+fstat(5, {st_mode=S_IFDIR|0755, st_size=4096, ...}) = 0
+close(7)                                = 0
+openat(5, "user.conf.d", O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_PATH) = -1 ENOENT (No such file or directory)
+close(6)                                = 0
+close(5)                                = 0
+close(4)                                = 0
+openat(AT_FDCWD, "/", O_RDONLY|O_CLOEXEC|O_PATH|O_DIRECTORY) = 4
+openat(4, "..", O_RDONLY|O_CLOEXEC|O_PATH|O_DIRECTORY) = 5
+statx(4, "", AT_STATX_SYNC_AS_STAT|AT_EMPTY_PATH, STATX_TYPE|STATX_INO|STATX_MNT_ID, {stx_mask=STATX_BASIC_STATS|STATX_MNT_ID, stx_attributes=STATX_ATTR_MOUNT_ROOT, stx_mode=S_IFDIR|0755, stx_size=4096, ...}) = 0
+statx(5, "", AT_STATX_SYNC_AS_STAT|AT_EMPTY_PATH, STATX_TYPE|STATX_INO|STATX_MNT_ID, {stx_mask=STATX_BASIC_STATS|STATX_MNT_ID, stx_attributes=STATX_ATTR_MOUNT_ROOT, stx_mode=S_IFDIR|0755, stx_size=4096, ...}) = 0
+close(5)                                = 0
+openat(4, "/", O_RDONLY|O_CLOEXEC|O_PATH|O_DIRECTORY) = 5
+fstat(5, {st_mode=S_IFDIR|0755, st_size=4096, ...}) = 0
+openat(AT_FDCWD, "/", O_RDONLY|O_CLOEXEC|O_PATH|O_DIRECTORY) = 6
+openat(5, "etc", O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_PATH) = 7
+fstat(7, {st_mode=S_IFDIR|0755, st_size=4096, ...}) = 0
+close(5)                                = 0
+openat(7, "systemd", O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_PATH) = 5
+fstat(5, {st_mode=S_IFDIR|0755, st_size=4096, ...}) = 0
+close(7)                                = 0
+openat(5, "user.conf.d", O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_PATH) = -1 ENOENT (No such file or directory)
+close(6)                                = 0
+close(5)                                = 0
+close(4)                                = 0
+openat(AT_FDCWD, "/", O_RDONLY|O_CLOEXEC|O_PATH|O_DIRECTORY) = 4
+openat(4, "..", O_RDONLY|O_CLOEXEC|O_PATH|O_DIRECTORY) = 5
+statx(4, "", AT_STATX_SYNC_AS_STAT|AT_EMPTY_PATH, STATX_TYPE|STATX_INO|STATX_MNT_ID, {stx_mask=STATX_BASIC_STATS|STATX_MNT_ID, stx_attributes=STATX_ATTR_MOUNT_ROOT, stx_mode=S_IFDIR|0755, stx_size=4096, ...}) = 0
+statx(5, "", AT_STATX_SYNC_AS_STAT|AT_EMPTY_PATH, STATX_TYPE|STATX_INO|STATX_MNT_ID, {stx_mask=STATX_BASIC_STATS|STATX_MNT_ID, stx_attributes=STATX_ATTR_MOUNT_ROOT, stx_mode=S_IFDIR|0755, stx_size=4096, ...}) = 0
+close(5)                                = 0
+openat(4, "/", O_RDONLY|O_CLOEXEC|O_PATH|O_DIRECTORY) = 5
+fstat(5, {st_mode=S_IFDIR|0755, st_size=4096, ...}) = 0
+openat(AT_FDCWD, "/", O_RDONLY|O_CLOEXEC|O_PATH|O_DIRECTORY) = 6
+openat(5, "run", O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_PATH) = 7
+fstat(7, {st_mode=S_IFDIR|0755, st_size=620, ...}) = 0
+close(5)                                = 0
+openat(7, "systemd", O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_PATH) = 5
+fstat(5, {st_mode=S_IFDIR|0755, st_size=640, ...}) = 0
+close(7)                                = 0
+openat(5, "user.conf.d", O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_PATH) = -1 ENOENT (No such file or directory)
+close(6)                                = 0
+close(5)                                = 0
+close(4)                                = 0
+openat(AT_FDCWD, "/", O_RDONLY|O_CLOEXEC|O_PATH|O_DIRECTORY) = 4
+openat(4, "..", O_RDONLY|O_CLOEXEC|O_PATH|O_DIRECTORY) = 5
+statx(4, "", AT_STATX_SYNC_AS_STAT|AT_EMPTY_PATH, STATX_TYPE|STATX_INO|STATX_MNT_ID, {stx_mask=STATX_BASIC_STATS|STATX_MNT_ID, stx_attributes=STATX_ATTR_MOUNT_ROOT, stx_mode=S_IFDIR|0755, stx_size=4096, ...}) = 0
+statx(5, "", AT_STATX_SYNC_AS_STAT|AT_EMPTY_PATH, STATX_TYPE|STATX_INO|STATX_MNT_ID, {stx_mask=STATX_BASIC_STATS|STATX_MNT_ID, stx_attributes=STATX_ATTR_MOUNT_ROOT, stx_mode=S_IFDIR|0755, stx_size=4096, ...}) = 0
+close(5)                                = 0
+openat(4, "/", O_RDONLY|O_CLOEXEC|O_PATH|O_DIRECTORY) = 5
+fstat(5, {st_mode=S_IFDIR|0755, st_size=4096, ...}) = 0
+openat(AT_FDCWD, "/", O_RDONLY|O_CLOEXEC|O_PATH|O_DIRECTORY) = 6
+openat(5, "usr", O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_PATH) = 7
+fstat(7, {st_mode=S_IFDIR|0755, st_size=4096, ...}) = 0
+close(5)                                = 0
+openat(7, "local", O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_PATH) = -1 ENOENT (No such file or directory)
+close(6)                                = 0
+close(7)                                = 0
+close(4)                                = 0
+openat(AT_FDCWD, "/", O_RDONLY|O_CLOEXEC|O_PATH|O_DIRECTORY) = 4
+openat(4, "..", O_RDONLY|O_CLOEXEC|O_PATH|O_DIRECTORY) = 5
+statx(4, "", AT_STATX_SYNC_AS_STAT|AT_EMPTY_PATH, STATX_TYPE|STATX_INO|STATX_MNT_ID, {stx_mask=STATX_BASIC_STATS|STATX_MNT_ID, stx_attributes=STATX_ATTR_MOUNT_ROOT, stx_mode=S_IFDIR|0755, stx_size=4096, ...}) = 0
+statx(5, "", AT_STATX_SYNC_AS_STAT|AT_EMPTY_PATH, STATX_TYPE|STATX_INO|STATX_MNT_ID, {stx_mask=STATX_BASIC_STATS|STATX_MNT_ID, stx_attributes=STATX_ATTR_MOUNT_ROOT, stx_mode=S_IFDIR|0755, stx_size=4096, ...}) = 0
+close(5)                                = 0
+openat(4, "/", O_RDONLY|O_CLOEXEC|O_PATH|O_DIRECTORY) = 5
+fstat(5, {st_mode=S_IFDIR|0755, st_size=4096, ...}) = 0
+openat(AT_FDCWD, "/", O_RDONLY|O_CLOEXEC|O_PATH|O_DIRECTORY) = 6
+openat(5, "usr", O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_PATH) = 7
+fstat(7, {st_mode=S_IFDIR|0755, st_size=4096, ...}) = 0
+close(5)                                = 0
+openat(7, "lib", O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_PATH) = -1 ENOENT (No such file or directory)
+close(6)                                = 0
+close(7)                                = 0
+close(4)                                = 0
+openat(AT_FDCWD, "/", O_RDONLY|O_CLOEXEC|O_PATH|O_DIRECTORY) = 4
+openat(4, "..", O_RDONLY|O_CLOEXEC|O_PATH|O_DIRECTORY) = 5
+statx(4, "", AT_STATX_SYNC_AS_STAT|AT_EMPTY_PATH, STATX_TYPE|STATX_INO|STATX_MNT_ID, {stx_mask=STATX_BASIC_STATS|STATX_MNT_ID, stx_attributes=STATX_ATTR_MOUNT_ROOT, stx_mode=S_IFDIR|0755, stx_size=4096, ...}) = 0
+statx(5, "", AT_STATX_SYNC_AS_STAT|AT_EMPTY_PATH, STATX_TYPE|STATX_INO|STATX_MNT_ID, {stx_mask=STATX_BASIC_STATS|STATX_MNT_ID, stx_attributes=STATX_ATTR_MOUNT_ROOT, stx_mode=S_IFDIR|0755, stx_size=4096, ...}) = 0
+close(5)                                = 0
+openat(4, "/", O_RDONLY|O_CLOEXEC|O_PATH|O_DIRECTORY) = 5
+fstat(5, {st_mode=S_IFDIR|0755, st_size=4096, ...}) = 0
+openat(AT_FDCWD, "/", O_RDONLY|O_CLOEXEC|O_PATH|O_DIRECTORY) = 6
+openat(5, "nix", O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_PATH) = 7
+fstat(7, {st_mode=S_IFDIR|0755, st_size=4096, ...}) = 0
+close(5)                                = 0
+openat(7, "store", O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_PATH) = 5
+fstat(5, {st_mode=S_IFDIR|S_ISVTX|0775, st_size=5812224, ...}) = 0
+close(7)                                = 0
+openat(5, "57rayvb28n66prgyavcbz2kk1qv3zydw-systemd-257.3", O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_PATH) = 7
+fstat(7, {st_mode=S_IFDIR|0555, st_size=4096, ...}) = 0
+close(5)                                = 0
+openat(7, "lib", O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_PATH) = 5
+fstat(5, {st_mode=S_IFDIR|0555, st_size=4096, ...}) = 0
+close(7)                                = 0
+openat(5, "systemd", O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_PATH) = 7
+fstat(7, {st_mode=S_IFDIR|0555, st_size=4096, ...}) = 0
+close(5)                                = 0
+openat(7, "user.conf.d", O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_PATH) = -1 ENOENT (No such file or directory)
+close(6)                                = 0
+close(7)                                = 0
+close(4)                                = 0
+openat(AT_FDCWD, "/home/hamzah/.config/systemd/user.conf", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/etc/systemd/user.conf", O_RDONLY|O_CLOEXEC) = 4
+fcntl(4, F_GETFL)                       = 0x8000 (flags O_RDONLY|O_LARGEFILE)
+fstat(4, {st_mode=S_IFREG|0444, st_size=11, ...}) = 0
+fstat(4, {st_mode=S_IFREG|0444, st_size=11, ...}) = 0
+read(4, "[Manager]\n\n", 4096)          = 11
+ioctl(4, TCGETS, 0x7fff2cd9d290)        = -1 ENOTTY (Inappropriate ioctl for device)
+ioctl(4, TCGETS, 0x7fff2cd9d290)        = -1 ENOTTY (Inappropriate ioctl for device)
+read(4, "", 4096)                       = 0
+close(4)                                = 0
+getuid()                                = 1000
+openat(AT_FDCWD, "/proc/self/oom_score_adj", O_RDONLY|O_NOCTTY|O_CLOEXEC) = 4
+fstat(4, {st_mode=S_IFREG|0644, st_size=0, ...}) = 0
+read(4, "0\n", 4104)                    = 2
+close(4)                                = 0
+ioctl(2, TCGETS, 0x7fff2cd9d4d0)        = -1 ENOTTY (Inappropriate ioctl for device)
+writev(2, [{iov_base="Explicit --user argument require"..., iov_len=57}, {iov_base="\n", iov_len=1}], 2Explicit --user argument required to run as user manager.
+) = 58
+exit_group(1)                           = ?
++++ exited with 1 +++

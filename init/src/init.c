@@ -3,7 +3,8 @@
 #include <assert.h>
 #include <unistd.h>
 
-void _start() {
+void main() {
     for (;;) {
+        syscall(1, 2, 3, 4, 5);
     }
 }
