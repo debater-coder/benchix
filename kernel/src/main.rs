@@ -125,7 +125,7 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
 
     kernel_log!("Allocated userspace.");
     kernel_log!("Switching to userspace...");
-    user_process.switch();
+    CPUS.get().unwrap().get_cpu().switch(user_process);
     kernel_log!("Returned to kernel?");
     loop {
         hlt();

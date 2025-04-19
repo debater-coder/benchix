@@ -96,7 +96,7 @@ impl Console {
         let y = SIZE.val() * row;
 
         let raster = get_raster(*self.char_ref(row, col) as char, FontWeight::Regular, SIZE)
-            .unwrap()
+            .unwrap_or(get_raster('?', FontWeight::Regular, SIZE).unwrap())
             .raster();
 
         for (row_i, row) in raster.iter().enumerate() {

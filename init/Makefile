@@ -1,2 +1,2 @@
 init: src/init.c
-	nix-shell -p musl --run "musl-gcc -Os -s -static src/init.c -o init"
+	gcc -Wall -Os -s -std=c99 -ffreestanding -nostdlib src/init.c -o init

@@ -11,7 +11,8 @@ use x86_64::structures::gdt::{Descriptor, GlobalDescriptorTable};
 use x86_64::structures::tss::TaskStateSegment;
 use x86_64::VirtAddr;
 
-use crate::user::handle_syscall;
+use crate::user::syscalls::handle_syscall;
+use crate::user::UserProcess;
 
 pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
 
@@ -23,6 +24,7 @@ pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
 pub struct PerCpu {
     gdt: GlobalDescriptorTable,
     tss: &'static mut TaskStateSegment,
+    pub current_process: Option<UserProcess>,
 }
 
 impl PerCpu {
@@ -42,7 +44,11 @@ impl PerCpu {
         // Setting up gdt
         let gdt = GlobalDescriptorTable::new();
 
-        PerCpu { gdt, tss }
+        PerCpu {
+            gdt,
+            tss,
+            current_process: None,
+        }
     }
 
     pub unsafe fn init_gdt(&'static mut self) {
@@ -75,6 +81,11 @@ impl PerCpu {
         .unwrap();
         LStar::write(VirtAddr::from_ptr(handle_syscall as *const ()));
         SFMask::write(RFlags::INTERRUPT_FLAG);
+    }
+
+    pub fn switch(&mut self, process: UserProcess) {
+        self.current_process = Some(process);
+        self.current_process.as_ref().unwrap().switch();
     }
 
     pub fn get_kernel_stack(&self) -> VirtAddr {

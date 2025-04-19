@@ -1,21 +1,17 @@
-use core::{
-    arch::{asm, naked_asm},
-    iter::zip,
-    mem::transmute,
-    ptr, slice,
-};
+use core::{arch::asm, slice};
 
-use alloc::vec;
-use alloc::vec::Vec;
+use alloc::{collections::btree_map::BTreeMap, vec};
+use alloc::{sync::Arc, vec::Vec};
 use x86_64::{
-    structures::paging::{
-        page::PageRangeInclusive, FrameAllocator, Mapper, OffsetPageTable, Page, PageTableFlags,
-        Size4KiB,
-    },
+    structures::paging::{FrameAllocator, Mapper, OffsetPageTable, Page, PageTableFlags, Size4KiB},
     VirtAddr,
 };
 
-use crate::{debug_println, kernel_log, memory::PhysicalMemoryManager, CPUS};
+use crate::{
+    debug_println, filesystem::vfs::Inode, kernel_log, memory::PhysicalMemoryManager, CPUS,
+};
+
+pub mod syscalls;
 
 unsafe fn allocate_user_page(
     mapper: &mut OffsetPageTable,
@@ -41,6 +37,8 @@ pub struct UserProcess {
     pub stack: VirtAddr, // Top of user stack
     kstack: Vec<u64>,    // Top of kernel stack
     rip: VirtAddr,
+    pub files: BTreeMap<u32, Arc<Inode>>,
+    next_fd: u32,
 }
 
 #[derive(Debug)]
@@ -197,6 +195,8 @@ impl UserProcess {
             rip: VirtAddr::new(u64::from_ne_bytes(binary[0x18..0x20].try_into().unwrap())),
             kstack: vec![0; 2 * 4096],
             stack: stack_end,
+            files: BTreeMap::new(),
+            next_fd: 0,
         })
     }
 
@@ -216,84 +216,4 @@ impl UserProcess {
             );
         }
     }
-}
-
-extern "sysv64" fn get_kernel_stack() -> u64 {
-    CPUS.get().unwrap().get_cpu().get_kernel_stack().as_u64()
-}
-
-extern "sysv64" fn handle_syscall_inner(
-    syscall_number: u64,
-    arg0: u64,
-    arg1: u64,
-    arg2: u64,
-    arg3: u64,
-) -> u64 {
-    kernel_log!(
-        "Syscall no: {} params: ({}, {}, {}, {})",
-        syscall_number,
-        arg0,
-        arg1,
-        arg2,
-        arg3
-    );
-    42
-}
-
-#[naked]
-pub unsafe extern "sysv64" fn handle_syscall() {
-    // save registers required by sysretq
-    naked_asm!(
-        "
-        // systretq uses these
-        push rcx
-        push r11
-
-        push rbp // Will store old sp
-        push rbx // Will store new sp
-
-        push rax // sycall number
-        push rdi // arg0
-        push rsi // arg1
-        push rdx // arg2
-        push r10 // arg3
-
-        call {} // Return value is now in rax
-        mov rbx, rax // RBX = new sp
-
-        // Restore syscall params
-        pop r10
-        pop rdx
-        pop rsi
-        pop rdi
-        pop rax
-
-        mov rbp, rsp // backup userspace stack
-        mov rsp, rbx // switch to new stack
-
-        // We push args to new stack
-        push rax // sycall number
-        push rdi // arg0
-        push rsi // arg1
-        push rdx // arg2
-        push r10 // arg3
-
-        // Pop to follow normal sysv64 calling convention
-        pop r8
-        pop rcx
-        pop rdx
-        pop rsi
-        pop rdi
-
-        call {}
-
-        mov rsp, rbp // Restore userspace stack
-        pop rbx
-        pop rbp
-        pop r11
-        pop rcx
-        sysretq",
-        sym get_kernel_stack,
-        sym handle_syscall_inner
-    );
 }
