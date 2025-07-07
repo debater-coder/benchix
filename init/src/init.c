@@ -17,9 +17,9 @@
 
 void _start() {
     __asm__ __volatile__ (
-         "pop %%rbp;" // C compiler will push rbp
-         // "pop %%rdi;"        // argc
-         // "mov %%rsp, %%rsi;" // argv
+         // "pop %%rbp;" // C compiler will push rbp
+         "pop %%rdi;"        // argc
+         "mov %%rsp, %%rsi;" // argv = thing at sp
          "andq $-16, %%rsp;"
          "call main;"
          "movq %%rax, %%rdi;" // exit
@@ -32,9 +32,12 @@ void _start() {
 sysdef(write);
 sysdef(open);
 
-int main() {
+int main(int argc, char** argv) {
     int fd = open("/dev/console", O_WRONLY);
 
     write(fd, "hello world\n", 12);
-    return 0;
+    for (int i = 0; i < argc; i++) {
+        write(fd, "arg: \n", 6);
+    }
+    return 32;
 }

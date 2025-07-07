@@ -1,5 +1,9 @@
+use core::ffi::CStr;
+use core::ptr::slice_from_raw_parts_mut;
 use core::{arch::asm, slice};
 
+use alloc::ffi::CString;
+use alloc::string::String;
 use alloc::{collections::btree_map::BTreeMap, vec};
 use alloc::{sync::Arc, vec::Vec};
 use x86_64::{
@@ -63,6 +67,7 @@ impl UserProcess {
         mapper: &mut OffsetPageTable<'_>,
         pmm: &mut PhysicalMemoryManager,
         binary: &[u8],
+        args: Vec<&str>,
     ) -> Result<Self, LoadingError> {
         // Validate ELF header
         if binary[0x0..0x4] != *b"\x7fELF" // Magic
@@ -178,11 +183,11 @@ impl UserProcess {
         }
         kernel_log!("Mappings have been created.");
 
-        let stack_end = VirtAddr::new(0x7fff_ffff_0000);
-        let stack_content = [0u8; 4 * 0x1000];
-        let stack_start = stack_end - stack_content.len() as u64 + 1;
+        let mut stack_end = VirtAddr::new(0x7fff_ffff_0000);
+        let stack_len = 0x4000;
+
         let stack_range = Page::range_inclusive(
-            Page::<Size4KiB>::containing_address(stack_start),
+            Page::<Size4KiB>::containing_address(stack_end - stack_len),
             Page::<Size4KiB>::containing_address(stack_end),
         );
         unsafe {
@@ -190,6 +195,37 @@ impl UserProcess {
                 allocate_user_page(mapper, pmm, page, PageTableFlags::NO_EXECUTE);
             }
         }
+
+        let mut argv = vec![];
+        let len = args.len() as u64;
+
+        for arg in args {
+            // Push string onto stack
+            let src = CString::new(arg).unwrap();
+            let src = src.as_bytes_with_nul();
+            stack_end -= src.len() as u64;
+            let dest: &mut [u8] =
+                unsafe { slice::from_raw_parts_mut(stack_end.as_mut_ptr(), src.len()) };
+            dest.copy_from_slice(src);
+
+            // Store pointer in vector
+            argv.push(stack_end.as_u64());
+        }
+
+        // FIXME: why it not pushing
+        // Push argv
+        for arg in argv {
+            stack_end -= size_of::<u64>() as u64;
+            let dest: &mut [u8] =
+                unsafe { slice::from_raw_parts_mut(stack_end.as_mut_ptr(), size_of::<u64>()) };
+            dest.copy_from_slice(arg.to_ne_bytes().as_slice());
+        }
+
+        // Push argc
+        stack_end -= size_of::<u64>() as u64;
+        let dest: &mut [u8] =
+            unsafe { slice::from_raw_parts_mut(stack_end.as_mut_ptr(), size_of::<u64>()) };
+        dest.copy_from_slice(len.to_ne_bytes().as_slice());
 
         Ok(UserProcess {
             rip: VirtAddr::new(u64::from_ne_bytes(binary[0x18..0x20].try_into().unwrap())),
