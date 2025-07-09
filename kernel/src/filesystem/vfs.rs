@@ -22,6 +22,7 @@ pub enum FileType {
 /// # VFS in-memory inode
 /// Note that this doesn't contain a list of block addresses, as individual file systems are responsible for maintaining their own inode cache
 /// Once a filesystem is registered on the VFS, these inodes contain all the info needed to stand in for the real on-disk inodes
+#[derive(Debug)]
 pub struct Inode {
     pub dev: u32,   // File system that the file belongs to
     pub inode: u32, // inode number

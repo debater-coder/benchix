@@ -199,9 +199,9 @@ impl UserProcess {
         let mut argv = vec![];
         let len = args.len() as u64;
 
-        for arg in args {
+        for arg in args.iter().rev() {
             // Push string onto stack
-            let src = CString::new(arg).unwrap();
+            let src = CString::new(*arg).unwrap();
             let src = src.as_bytes_with_nul();
             stack_end -= src.len() as u64;
             let dest: &mut [u8] =
@@ -212,7 +212,6 @@ impl UserProcess {
             argv.push(stack_end.as_u64());
         }
 
-        // FIXME: why it not pushing
         // Push argv
         for arg in argv {
             stack_end -= size_of::<u64>() as u64;

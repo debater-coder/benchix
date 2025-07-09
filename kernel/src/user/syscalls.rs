@@ -24,7 +24,26 @@ fn check_buffer(buffer: &[u8]) -> bool {
 
 fn read(fd: u32, buf: *mut u8, count: usize) -> usize {
     kernel_log!("read({}, {:?}, {})", fd, buf, count);
-    todo!()
+    let buf = unsafe { slice::from_raw_parts_mut(buf, count) };
+    assert!(check_buffer(buf));
+
+    let inode = CPUS
+        .get()
+        .unwrap()
+        .get_cpu()
+        .current_process
+        .as_ref()
+        .unwrap()
+        .files
+        .get(&fd)
+        .unwrap()
+        .clone();
+
+    kernel_log!("reading to inode: {:?} with fd {}", inode, fd);
+
+    let vfs = VFS.get().unwrap();
+
+    vfs.read(inode, 0, buf).unwrap()
 }
 
 fn write(fd: u32, buf: *mut u8, count: usize) -> usize {
@@ -73,10 +92,12 @@ fn open(pathname: *const i8, flags: u32) -> u64 {
 
     vfs.open(inode.clone()).unwrap();
 
-    process.files.insert(process.next_fd, inode);
+    let fd = process.next_fd;
+    process.files.insert(fd, inode);
     process.next_fd += 1;
 
-    0
+    kernel_log!("Opened to fd: {}", fd);
+    fd as u64
 }
 
 fn close(fd: u32) -> u32 {
@@ -97,7 +118,7 @@ pub extern "sysv64" fn handle_syscall_inner(
     arg3: u64,
 ) -> u64 {
     match syscall_number {
-        0 => 0,
+        0 => read(arg0 as u32, arg1 as usize as *mut _, arg2 as usize) as u64,
         1 => write(arg0 as u32, arg1 as usize as *mut _, arg2 as usize) as u64,
         2 => open(arg0 as usize as *const _, arg1 as u32),
         3 => {

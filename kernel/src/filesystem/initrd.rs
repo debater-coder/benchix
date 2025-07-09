@@ -88,7 +88,7 @@ impl Filesystem for Initrd {
             .ok_or(FilesystemError::WrongType)?;
         let contents = &contents[offset..(offset + buffer.len()).min(inode.size)];
         buffer[..contents.len()].copy_from_slice(contents);
-        Ok(buffer.len())
+        Ok(contents.len())
     }
 
     fn write(

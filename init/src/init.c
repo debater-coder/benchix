@@ -26,7 +26,8 @@ unsigned long long int my_strlen(char* str) {
             "movq %0, %%rax;"      \
             "mov %%rcx, %%r10;"    \
             "syscall;"             \
-            :: "i"(SYS_##name) : "rax" \
+            "ret;" \
+            :: "i"(SYS_##name)  \
         );                         \
     }
 
@@ -44,16 +45,25 @@ void _start() {
 }
 
 sysdef(write);
+sysdef(read);
 sysdef(open);
 
 
 int main(int argc, char** argv) {
     int fd = open("/dev/console", O_WRONLY);
 
-    write(fd, "hello world\n", 12);
+    write(fd, "passed args:\n", 12);
     for (int i = 0; i < argc; i++) {
         write(fd, argv[i], my_strlen(argv[i]));
         write(fd, "\n", 1);
     }
-    return 32;
+
+    int fd2 = open("/init/hello_world.txt", O_RDONLY);
+    char buf[100];
+
+    unsigned long long int count = read(fd2, buf, 100);
+
+    write(fd, buf, count);
+
+    return 42;
 }
