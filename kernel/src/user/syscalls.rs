@@ -1,12 +1,35 @@
-use bitflags::bitflags;
-use core::{arch::naked_asm, ffi::CStr, ptr::slice_from_raw_parts_mut, slice};
+use core::{arch::naked_asm, ffi::CStr, slice};
 
+use alloc::sync::Arc;
+use spin::RwLock;
 use x86_64::VirtAddr;
 
-use crate::{filesystem::vfs::Filesystem, kernel_log, CPUS, VFS};
+use crate::{
+    filesystem::vfs::Filesystem,
+    kernel_log,
+    user::{
+        constants::{EBADF, ENOSYS, O_ACCMODE, O_RDONLY, O_RDWR, O_WRONLY},
+        FileDescriptor,
+    },
+    CPUS, VFS,
+};
+
+use super::UserProcess;
 
 extern "sysv64" fn get_kernel_stack() -> u64 {
     CPUS.get().unwrap().get_cpu().get_kernel_stack().as_u64()
+}
+
+/// Gets the current process (for syscalls)
+/// # Panics
+/// If there is no current process or the CPU struct isn't initialised
+fn get_current_process() -> &'static mut UserProcess {
+    CPUS.get()
+        .unwrap()
+        .get_cpu()
+        .current_process
+        .as_mut()
+        .expect("No current process")
 }
 
 /// Checks if an address is in userspace
@@ -15,6 +38,7 @@ fn check_addr(addr: VirtAddr) -> bool {
     addr.as_u64() & (1 << 63) == 0
 }
 
+/// Checks if a buffer is in userspace
 fn check_buffer(buffer: &[u8]) -> bool {
     let buffer_start = buffer.as_ptr();
     let buffer_end = unsafe { buffer_start.byte_add(buffer.len()) };
@@ -27,23 +51,26 @@ fn read(fd: u32, buf: *mut u8, count: usize) -> usize {
     let buf = unsafe { slice::from_raw_parts_mut(buf, count) };
     assert!(check_buffer(buf));
 
-    let inode = CPUS
-        .get()
-        .unwrap()
-        .get_cpu()
-        .current_process
-        .as_ref()
-        .unwrap()
-        .files
-        .get(&fd)
-        .unwrap()
-        .clone();
+    let fd = get_current_process().files.get(&fd);
 
-    kernel_log!("reading to inode: {:?} with fd {}", inode, fd);
+    let mut fd = match fd {
+        None => return -EBADF as usize,
+        Some(fd) => fd.write(),
+    };
+
+    let access_mode = fd.flags & O_ACCMODE;
+
+    if !(access_mode == O_RDWR || access_mode == O_RDONLY) {
+        return -EBADF as usize;
+    }
 
     let vfs = VFS.get().unwrap();
 
-    vfs.read(inode, 0, buf).unwrap()
+    let count = vfs.read(fd.inode.clone(), fd.offset, buf).unwrap();
+
+    fd.offset += count as u64;
+
+    count
 }
 
 fn write(fd: u32, buf: *mut u8, count: usize) -> usize {
@@ -52,21 +79,24 @@ fn write(fd: u32, buf: *mut u8, count: usize) -> usize {
     let buf = unsafe { slice::from_raw_parts_mut(buf, count) };
     assert!(check_buffer(buf));
 
-    let inode = CPUS
-        .get()
-        .unwrap()
-        .get_cpu()
-        .current_process
-        .as_ref()
-        .unwrap()
-        .files
-        .get(&fd)
-        .unwrap()
-        .clone();
+    let fd = get_current_process().files.get(&fd);
+
+    let mut fd = match fd {
+        None => return -EBADF as usize,
+        Some(fd) => fd.write(),
+    };
+
+    let access_mode = fd.flags & O_ACCMODE;
+
+    if !(access_mode == O_RDWR || access_mode == O_WRONLY) {
+        return -EBADF as usize;
+    }
 
     let vfs = VFS.get().unwrap();
 
-    vfs.write(inode, 0, buf).unwrap();
+    vfs.write(fd.inode.clone(), fd.offset, buf).unwrap();
+
+    fd.offset += count as u64;
 
     count
 }
@@ -76,15 +106,7 @@ fn open(pathname: *const i8, flags: u32) -> u64 {
     assert!(check_buffer(pathname.as_bytes()));
     kernel_log!("open({:?}, {:?})", pathname, flags);
 
-    // TODO: care about the flags
-
-    let process = CPUS
-        .get()
-        .unwrap()
-        .get_cpu()
-        .current_process
-        .as_mut()
-        .unwrap();
+    let process = get_current_process();
 
     let vfs = VFS.get().unwrap();
 
@@ -93,15 +115,22 @@ fn open(pathname: *const i8, flags: u32) -> u64 {
     vfs.open(inode.clone()).unwrap();
 
     let fd = process.next_fd;
-    process.files.insert(fd, inode);
+    process.files.insert(
+        fd,
+        Arc::new(RwLock::new(FileDescriptor {
+            inode,
+            flags,
+            offset: 0,
+        })),
+    );
     process.next_fd += 1;
 
     kernel_log!("Opened to fd: {}", fd);
     fd as u64
 }
 
-fn close(fd: u32) -> u32 {
-    kernel_log!("close({}", fd);
+fn close(fd: u32) -> u64 {
+    kernel_log!("close({})", fd);
     0
 }
 
@@ -121,10 +150,7 @@ pub extern "sysv64" fn handle_syscall_inner(
         0 => read(arg0 as u32, arg1 as usize as *mut _, arg2 as usize) as u64,
         1 => write(arg0 as u32, arg1 as usize as *mut _, arg2 as usize) as u64,
         2 => open(arg0 as usize as *const _, arg1 as u32),
-        3 => {
-            kernel_log!("close");
-            0
-        }
+        3 => close(arg0 as u32),
         60 => exit(arg0 as i32),
         _ => {
             kernel_log!(
@@ -135,7 +161,7 @@ pub extern "sysv64" fn handle_syscall_inner(
                 arg2,
                 arg3
             );
-            0
+            -ENOSYS as u64
         }
     }
 }

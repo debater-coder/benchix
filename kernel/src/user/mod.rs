@@ -6,6 +6,7 @@ use alloc::ffi::CString;
 use alloc::string::String;
 use alloc::{collections::btree_map::BTreeMap, vec};
 use alloc::{sync::Arc, vec::Vec};
+use spin::RwLock;
 use x86_64::{
     structures::paging::{FrameAllocator, Mapper, OffsetPageTable, Page, PageTableFlags, Size4KiB},
     VirtAddr,
@@ -15,6 +16,7 @@ use crate::{
     debug_println, filesystem::vfs::Inode, kernel_log, memory::PhysicalMemoryManager, CPUS,
 };
 
+pub mod constants;
 pub mod syscalls;
 
 unsafe fn allocate_user_page(
@@ -41,8 +43,14 @@ pub struct UserProcess {
     pub stack: VirtAddr, // Top of user stack
     kstack: Vec<u64>,    // Top of kernel stack
     rip: VirtAddr,
-    pub files: BTreeMap<u32, Arc<Inode>>,
-    next_fd: u32,
+    pub files: BTreeMap<u32, Arc<RwLock<FileDescriptor>>>, // So that file descriptors can be shared
+    next_fd: u32, // TODO: be less naive (if you repeatedly open and close file descriptors you will run out)
+}
+
+pub struct FileDescriptor {
+    pub inode: Arc<Inode>,
+    pub offset: u64,
+    pub flags: u32,
 }
 
 #[derive(Debug)]

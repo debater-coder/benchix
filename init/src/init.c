@@ -59,11 +59,14 @@ int main(int argc, char** argv) {
     }
 
     int fd2 = open("/init/hello_world.txt", O_RDONLY);
-    char buf[100];
+    char buf[2];
 
-    unsigned long long int count = read(fd2, buf, 100);
+    // Read 2 characters at a time
 
-    write(fd, buf, count);
+    unsigned long int count;
+    while ((count = read(fd2, buf, 2)) > 0) {
+        write(fd, buf, count);
+    }
 
     return 42;
 }
