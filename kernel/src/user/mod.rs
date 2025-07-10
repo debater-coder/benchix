@@ -191,53 +191,86 @@ impl UserProcess {
         }
         kernel_log!("Mappings have been created.");
 
-        let mut stack_end = VirtAddr::new(0x7fff_ffff_0000);
-        let stack_len = 0x4000;
+        // https://gitlab.com/x86-psABIs/x86-64-ABI/-/jobs/9388606854/artifacts/raw/x86-64-ABI/abi.pdf
+        // See figure 3.9:
+        // Note 7fff_ffff_0000..7fff_ffff_ffff forms the initial process stack
+        let stack_top = VirtAddr::new(0x7fff_ffff_0000);
+        let stack_len = 0x4000; // how much we are allocating for future growth of the stack
 
-        let stack_range = Page::range_inclusive(
-            Page::<Size4KiB>::containing_address(stack_end - stack_len),
-            Page::<Size4KiB>::containing_address(stack_end),
+        // Alloc page for info
+        unsafe {
+            allocate_user_page(
+                mapper,
+                pmm,
+                Page::<Size4KiB>::from_start_address(stack_top)
+                    .expect("stack top to be page-aligned"),
+                PageTableFlags::NO_EXECUTE,
+            );
+        }
+
+        let argc = args.len() as u64;
+
+        // argc
+        unsafe {
+            stack_top.as_mut_ptr::<u64>().write(argc);
+        }
+
+        // argv and argv strings
+        let mut argv_base = stack_top + 8 + 8 * argc + 8 + 8 + 8; // Where the actual strings will be stored
+
+        for (i, arg) in args.iter().enumerate() {
+            // Pointer to argv string
+            unsafe {
+                (stack_top + 8 + 8 * i as u64)
+                    .as_mut_ptr::<u64>()
+                    .write(argv_base.as_u64());
+            }
+
+            // Actual argv string (null terminated)
+            let src = CString::new(*arg).unwrap();
+            let src = src.as_bytes_with_nul();
+
+            let dest: &mut [u8] =
+                unsafe { slice::from_raw_parts_mut(argv_base.as_mut_ptr(), src.len()) };
+
+            dest.copy_from_slice(src);
+            argv_base += src.len() as u64;
+        }
+
+        // so that argv[argc] = 0
+        // Technically this should be zeroed already but we do it so I don't forget to leave a gap
+        unsafe {
+            (stack_top + 8 + 8 * argc).as_mut_ptr::<u64>().write(0);
+        }
+
+        // No environment variables yet so we just terminate the envp array with another 0
+        unsafe {
+            (stack_top + 8 + 8 * argc + 8).as_mut_ptr::<u64>().write(0);
+        }
+
+        // No aux variables so yet another 0u64
+        unsafe {
+            (stack_top + 8 + 8 * argc + 8 + 8)
+                .as_mut_ptr::<u64>()
+                .write(0);
+        }
+
+        // Allocate the rest of the stack
+        let stack_range = Page::range(
+            Page::<Size4KiB>::containing_address(stack_top - stack_len), // Future top of stack
+            Page::<Size4KiB>::containing_address(stack_top),             // Current top of stack
         );
+
         unsafe {
             for page in stack_range {
                 allocate_user_page(mapper, pmm, page, PageTableFlags::NO_EXECUTE);
             }
         }
 
-        let mut argv = vec![];
-        let len = args.len() as u64;
-
-        for arg in args.iter().rev() {
-            // Push string onto stack
-            let src = CString::new(*arg).unwrap();
-            let src = src.as_bytes_with_nul();
-            stack_end -= src.len() as u64;
-            let dest: &mut [u8] =
-                unsafe { slice::from_raw_parts_mut(stack_end.as_mut_ptr(), src.len()) };
-            dest.copy_from_slice(src);
-
-            // Store pointer in vector
-            argv.push(stack_end.as_u64());
-        }
-
-        // Push argv
-        for arg in argv {
-            stack_end -= size_of::<u64>() as u64;
-            let dest: &mut [u8] =
-                unsafe { slice::from_raw_parts_mut(stack_end.as_mut_ptr(), size_of::<u64>()) };
-            dest.copy_from_slice(arg.to_ne_bytes().as_slice());
-        }
-
-        // Push argc
-        stack_end -= size_of::<u64>() as u64;
-        let dest: &mut [u8] =
-            unsafe { slice::from_raw_parts_mut(stack_end.as_mut_ptr(), size_of::<u64>()) };
-        dest.copy_from_slice(len.to_ne_bytes().as_slice());
-
         Ok(UserProcess {
             rip: VirtAddr::new(u64::from_ne_bytes(binary[0x18..0x20].try_into().unwrap())),
             kstack: vec![0; 2 * 4096],
-            stack: stack_end,
+            stack: stack_top,
             files: BTreeMap::new(),
             next_fd: 0,
         })

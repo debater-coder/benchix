@@ -121,8 +121,13 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
         )
     };
 
-    let user_process =
-        UserProcess::load_elf(&mut mapper, &mut pmm, binary, vec!["arg1", "arg2", "arg3"]).unwrap();
+    let user_process = UserProcess::load_elf(
+        &mut mapper,
+        &mut pmm,
+        binary,
+        vec!["/init/init", "arg2", "arg3"], // The first arg is fake -- we don't have the ramdisk mapped to vfs yet
+    )
+    .unwrap();
 
     kernel_log!("Allocated userspace.");
     kernel_log!("Switching to userspace...");

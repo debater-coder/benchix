@@ -21,7 +21,7 @@ use crate::{
 };
 
 use super::{
-    constants::{ARCH_SET_FS, EINVAL},
+    constants::{ARCH_SET_FS, EINVAL, ENOTTY},
     UserProcess,
 };
 
@@ -180,6 +180,7 @@ pub extern "sysv64" fn handle_syscall_inner(
         1 => write(arg0 as u32, arg1 as usize as *mut _, arg2 as usize) as u64,
         2 => open(arg0 as usize as *const _, arg1 as u32),
         3 => close(arg0 as u32),
+        16 => -ENOTTY as u64, // ioctl
         158 => arch_prctl(arg0 as u32, arg1),
         60 => exit(arg0 as i32),
         _ => {
