@@ -47,3 +47,12 @@ pub const O_WRONLY: u32 = 0o00000001;
 pub const O_RDWR: u32 = 0o00000002;
 pub const O_CREAT: u32 = 0o00000100;
 pub const O_ACCMODE: u32 = 0000000003; // AND this to get access mode
+
+// arch/x86/include/uapi/asm/prctl.h
+pub const ARCH_SET_GS: u32 = 0x1001;
+pub const ARCH_SET_FS: u32 = 0x1002;
+pub const ARCH_GET_FS: u32 = 0x1003;
+pub const ARCH_GET_GS: u32 = 0x1004;
+
+pub const ARCH_GET_CPUID: u32 = 0x1011;
+pub const ARCH_SET_CPUID: u32 = 0x1012;

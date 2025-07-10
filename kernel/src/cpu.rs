@@ -4,7 +4,7 @@ use alloc::boxed::Box;
 use x86_64::instructions::segmentation::Segment;
 use x86_64::instructions::segmentation::{CS, DS, ES, FS, GS, SS};
 use x86_64::instructions::tables::load_tss;
-use x86_64::registers::control::{Efer, EferFlags};
+use x86_64::registers::control::{Cr4, Cr4Flags, Efer, EferFlags};
 use x86_64::registers::model_specific::{LStar, SFMask, Star};
 use x86_64::registers::rflags::RFlags;
 use x86_64::structures::gdt::{Descriptor, GlobalDescriptorTable};
@@ -22,7 +22,7 @@ pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
 /// The linux kernel has a separate stack for this to save stack space.
 /// That's why we keep the TSS in an UnsafeCell, so we can update the interrupt handling stack.
 pub struct PerCpu {
-    gdt: GlobalDescriptorTable,
+    pub gdt: GlobalDescriptorTable,
     tss: &'static mut TaskStateSegment,
     pub current_process: Option<UserProcess>,
 }

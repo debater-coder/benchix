@@ -1,2 +1,2 @@
 init: src/init.c
-	gcc -Wall -Os -s -std=c99 -ffreestanding -nostdlib -fno-stack-protector src/init.c -o init
+	nix-shell -p musl --command "musl-gcc -static  -o init src/init.c"

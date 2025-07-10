@@ -2,19 +2,28 @@ use core::{arch::naked_asm, ffi::CStr, slice};
 
 use alloc::sync::Arc;
 use spin::RwLock;
-use x86_64::VirtAddr;
+use x86_64::{
+    registers::{
+        model_specific::FsBase,
+        segmentation::{Segment64, FS},
+    },
+    VirtAddr,
+};
 
 use crate::{
     filesystem::vfs::Filesystem,
     kernel_log,
     user::{
-        constants::{EBADF, ENOSYS, O_ACCMODE, O_RDONLY, O_RDWR, O_WRONLY},
+        constants::{EBADF, EFAULT, ENOSYS, O_ACCMODE, O_RDONLY, O_RDWR, O_WRONLY},
         FileDescriptor,
     },
     CPUS, VFS,
 };
 
-use super::UserProcess;
+use super::{
+    constants::{ARCH_SET_FS, EINVAL},
+    UserProcess,
+};
 
 extern "sysv64" fn get_kernel_stack() -> u64 {
     CPUS.get().unwrap().get_cpu().get_kernel_stack().as_u64()
@@ -32,13 +41,13 @@ fn get_current_process() -> &'static mut UserProcess {
         .expect("No current process")
 }
 
-/// Checks if an address is in userspace
+/// Returns true if an address is in userspace
 /// Since this is a higher half kernel, userspace bits will be in the lower half.
 fn check_addr(addr: VirtAddr) -> bool {
     addr.as_u64() & (1 << 63) == 0
 }
 
-/// Checks if a buffer is in userspace
+/// Returns true if a buffer is in userspace
 fn check_buffer(buffer: &[u8]) -> bool {
     let buffer_start = buffer.as_ptr();
     let buffer_end = unsafe { buffer_start.byte_add(buffer.len()) };
@@ -49,7 +58,9 @@ fn check_buffer(buffer: &[u8]) -> bool {
 fn read(fd: u32, buf: *mut u8, count: usize) -> usize {
     kernel_log!("read({}, {:?}, {})", fd, buf, count);
     let buf = unsafe { slice::from_raw_parts_mut(buf, count) };
-    assert!(check_buffer(buf));
+    if !check_buffer(buf) {
+        return -EFAULT as usize;
+    }
 
     let fd = get_current_process().files.get(&fd);
 
@@ -77,7 +88,9 @@ fn write(fd: u32, buf: *mut u8, count: usize) -> usize {
     kernel_log!("write({}, {:?}, {})", fd, buf, count);
 
     let buf = unsafe { slice::from_raw_parts_mut(buf, count) };
-    assert!(check_buffer(buf));
+    if !check_buffer(buf) {
+        return -EFAULT as usize;
+    }
 
     let fd = get_current_process().files.get(&fd);
 
@@ -139,6 +152,22 @@ fn exit(status: i32) -> ! {
     loop {}
 }
 
+fn arch_prctl(op: u32, addr: u64) -> u64 {
+    kernel_log!("arch_prctl({:x}, {:x})", op, addr);
+    match op {
+        ARCH_SET_FS => {
+            let addr = VirtAddr::new(addr);
+            if !check_addr(addr) {
+                return -EFAULT as u64;
+            };
+
+            FsBase::write(addr);
+            0
+        }
+        _ => -EINVAL as u64,
+    }
+}
+
 pub extern "sysv64" fn handle_syscall_inner(
     syscall_number: u64,
     arg0: u64,
@@ -151,6 +180,7 @@ pub extern "sysv64" fn handle_syscall_inner(
         1 => write(arg0 as u32, arg1 as usize as *mut _, arg2 as usize) as u64,
         2 => open(arg0 as usize as *const _, arg1 as u32),
         3 => close(arg0 as u32),
+        158 => arch_prctl(arg0 as u32, arg1),
         60 => exit(arg0 as i32),
         _ => {
             kernel_log!(
