@@ -182,6 +182,7 @@ pub extern "sysv64" fn handle_syscall_inner(
         3 => close(arg0 as u32),
         16 => -ENOTTY as u64, // ioctl
         158 => arch_prctl(arg0 as u32, arg1),
+        231 => exit(arg0 as i32),
         60 => exit(arg0 as i32),
         _ => {
             kernel_log!(
