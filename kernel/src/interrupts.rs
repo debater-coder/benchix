@@ -151,13 +151,14 @@ pub(super) mod exception_handlers {
     }
 
     pub(super) extern "x86-interrupt" fn page_fault(
-        _interrupt_stack_frame: InterruptStackFrame,
+        interrupt_stack_frame: InterruptStackFrame,
         error_code: PageFaultErrorCode,
     ) {
         panic!(
-            "[CPU Exception] Page Fault on address {:?}, {:?}",
+            "[CPU Exception] Page Fault on address {:?}, {:?}\n{:?}",
             Cr2::read(),
-            error_code
+            error_code,
+            interrupt_stack_frame
         )
     }
 
