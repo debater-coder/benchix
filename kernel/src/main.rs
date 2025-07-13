@@ -9,7 +9,7 @@ use conquer_once::spin::OnceCell;
 use cpu::{Cpus, PerCpu};
 use filesystem::devfs::Devfs;
 use filesystem::initrd::Initrd;
-use filesystem::vfs::{Filesystem, VirtualFileSystem};
+use filesystem::vfs::VirtualFileSystem;
 use lapic::Lapic;
 use user::UserProcess;
 use x86_64::registers::model_specific::Msr;

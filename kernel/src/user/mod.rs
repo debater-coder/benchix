@@ -1,9 +1,6 @@
-use core::ffi::CStr;
-use core::ptr::slice_from_raw_parts_mut;
 use core::{arch::asm, slice};
 
 use alloc::ffi::CString;
-use alloc::string::String;
 use alloc::{collections::btree_map::BTreeMap, vec};
 use alloc::{sync::Arc, vec::Vec};
 use spin::RwLock;

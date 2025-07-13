@@ -2,13 +2,7 @@ use core::{arch::naked_asm, ffi::CStr, slice};
 
 use alloc::sync::Arc;
 use spin::RwLock;
-use x86_64::{
-    registers::{
-        model_specific::FsBase,
-        segmentation::{Segment64, FS},
-    },
-    VirtAddr,
-};
+use x86_64::{registers::model_specific::FsBase, VirtAddr};
 
 use crate::{
     filesystem::vfs::Filesystem,
