@@ -170,8 +170,15 @@ extern "sysv64" fn thread_1() {
 
     loop {
         kernel_log!("From thread 1 (add 13): {}", count);
-        count = count.wrapping_add(13);
+        count = count.saturating_add(13);
+
+        if count == u8::MAX {
+            break;
+        }
         requeue_current_thread();
+        scheduler::yield_execution();
+    }
+    loop {
         scheduler::yield_execution();
     }
 }
@@ -180,9 +187,15 @@ extern "sysv64" fn thread_2() {
 
     loop {
         kernel_log!("From thread 2 (add 15): {}", count);
-        count = count.wrapping_add(15);
+        count = count.saturating_add(15);
 
+        if count == u8::MAX {
+            break;
+        }
         requeue_current_thread();
+        scheduler::yield_execution();
+    }
+    loop {
         scheduler::yield_execution();
     }
 }
