@@ -6,6 +6,7 @@ use x86_64::{registers::model_specific::FsBase, VirtAddr};
 
 use crate::{
     filesystem::vfs::Filesystem,
+    kernel_log, scheduler,
     user::{
         constants::{EBADF, EFAULT, ENOSYS, O_ACCMODE, O_RDONLY, O_RDWR, O_WRONLY},
         FileDescriptor,
@@ -158,8 +159,10 @@ fn close(fd: u32) -> u64 {
 }
 
 fn exit(status: i32) -> ! {
-    debug_println!("Process exited with code {}", status);
-    loop {}
+    kernel_log!("Process exited with code {}", status);
+    loop {
+        scheduler::yield_execution();
+    }
 }
 
 fn arch_prctl(op: u32, addr: u64) -> u64 {

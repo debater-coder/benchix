@@ -1,4 +1,7 @@
-use core::mem::offset_of;
+use core::{
+    mem::offset_of,
+    sync::atomic::{AtomicU32, Ordering},
+};
 
 use alloc::{
     collections::vec_deque::VecDeque,
@@ -13,14 +16,14 @@ use x86_64::instructions::interrupts::{self, enable_and_hlt};
 use crate::{kernel_log, user::UserProcess, CPUS};
 
 static READY: OnceCell<Mutex<VecDeque<Arc<Mutex<Thread>>>>> = OnceCell::uninit();
-pub static EXECUTING: Mutex<Option<Arc<Mutex<Thread>>>> = Mutex::new(None);
+static NEXT_TID: AtomicU32 = AtomicU32::new(0);
 
 /// Used Redox for reference.
 /// https://gitlab.redox-os.org/redox-os/kernel/-/blob/master/src/context/arch/x86_64.rs?ref_type=heads
 ///
 /// These are all System V ABI callee-saved registers, the rest will be pushed
 /// to stack on function call
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug)]
 #[repr(C)]
 pub struct Context {
     pub rflags: u64,
@@ -46,6 +49,17 @@ pub struct Thread {
     pub kstack: Vec<u64>,
     /// Parent process
     pub process: Weak<Mutex<UserProcess>>,
+    /// Thread id
+    pub tid: u32,
+}
+
+impl core::fmt::Debug for Thread {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Thread")
+            .field("context", &format_args!("{:x?}", self.context))
+            .field("process", &format_args!("{:?}", self.process))
+            .finish()
+    }
 }
 
 impl Thread {
@@ -57,6 +71,7 @@ impl Thread {
             context: Context::new(),
             kstack: vec![0; 2 * 4096],
             process,
+            tid: NEXT_TID.fetch_add(1, Ordering::Relaxed),
         };
 
         // Put the return address on the top of the stack
@@ -155,30 +170,47 @@ unsafe extern "sysv64" fn switch_finish_hook() {
     READY.get().unwrap().force_unlock();
 }
 
+/// Yields to scheduler, but keep current thread in queue.
+pub fn yield_and_continue() {
+    if let Some(thread) = CPUS.get().unwrap().get_cpu().current_thread.as_ref() {
+        enqueue(thread.clone());
+    }
+    yield_execution();
+}
+
 /// Yields to scheduler to decide what should use CPU time.
 pub fn yield_execution() {
     interrupts::disable();
-    kernel_log!("Scheduler yield");
-    if let Some(thread) = READY
+    debug_print!(".");
+    if let Some(next_thread) = READY
         .get()
         .expect("scheduler::init should have been called")
         .lock()
         .pop_front()
     {
-        let prev: &mut Context = match CPUS.get().unwrap().get_cpu().current_thread.as_mut() {
+        let current_thread = CPUS.get().unwrap().get_cpu().current_thread.as_mut();
+
+        let prev: &mut Context = match current_thread {
             None => &mut Context::new(), // Dummy context
-            Some(thread) => &mut thread.lock().context,
+            Some(thread) => {
+                // If the next thread and the current thread is the same, we will deadlock
+                if Arc::ptr_eq(&thread.clone(), &next_thread) {
+                    return;
+                }
+
+                &mut thread.lock().context
+            }
         };
 
-        let next = { thread.lock().context.clone() }; // The lock will be released after this
+        let next = { next_thread.lock().context.clone() }; // The lock will be released after this
 
-        CPUS.get().unwrap().get_cpu().next_thread = Some(thread.clone());
+        CPUS.get().unwrap().get_cpu().next_thread = Some(next_thread.clone());
 
         unsafe {
             switch_to(prev, &next);
         }
     } else {
-        if EXECUTING.lock().is_none() {
+        if CPUS.get().unwrap().get_cpu().current_thread.is_none() {
             enable_and_hlt();
         }
     }
