@@ -1,6 +1,11 @@
 use core::mem::offset_of;
 
-use alloc::{collections::vec_deque::VecDeque, sync::Arc, vec, vec::Vec};
+use alloc::{
+    collections::vec_deque::VecDeque,
+    sync::{Arc, Weak},
+    vec,
+    vec::Vec,
+};
 use conquer_once::spin::OnceCell;
 use spin::Mutex;
 use x86_64::instructions::interrupts::{self, enable_and_hlt};
@@ -18,13 +23,13 @@ pub static EXECUTING: Mutex<Option<Arc<Mutex<Thread>>>> = Mutex::new(None);
 #[derive(Default, Clone)]
 #[repr(C)]
 pub struct Context {
-    rflags: u64,
-    rbx: u64,
-    r12: u64,
-    r13: u64,
-    r14: u64,
-    r15: u64,
-    rbp: u64,
+    pub rflags: u64,
+    pub rbx: u64,
+    pub r12: u64,
+    pub r13: u64,
+    pub r14: u64,
+    pub r15: u64,
+    pub rbp: u64,
     pub rsp: u64,
 }
 
@@ -39,13 +44,19 @@ pub struct Thread {
     pub context: Context,
     /// Kernel stack
     pub kstack: Vec<u64>,
+    /// Parent process
+    pub process: Weak<Mutex<UserProcess>>,
 }
 
 impl Thread {
-    pub fn from_func(func: extern "sysv64" fn()) -> Thread {
+    pub fn from_func(
+        func: unsafe extern "sysv64" fn(),
+        process: Weak<Mutex<UserProcess>>,
+    ) -> Thread {
         let mut thread = Thread {
             context: Context::new(),
             kstack: vec![0; 2 * 4096],
+            process,
         };
 
         // Put the return address on the top of the stack

@@ -12,6 +12,7 @@ use filesystem::devfs::Devfs;
 use filesystem::initrd::Initrd;
 use filesystem::vfs::VirtualFileSystem;
 use lapic::Lapic;
+use memory::PhysicalMemoryManager;
 use scheduler::Thread;
 use spin::mutex::Mutex;
 use user::UserProcess;
@@ -34,7 +35,6 @@ use alloc::{slice, vec};
 
 use bootloader_api::config::Mapping;
 use bootloader_api::BootloaderConfig;
-use x86_64::instructions::hlt;
 
 pub const HEAP_START: u64 = 0x_ffff_9000_0000_0000;
 pub const KERNEL_STACK_START: u64 = 0xffff_f700_0000_0000;
@@ -72,6 +72,7 @@ macro_rules! kernel_log {
 
 pub static VFS: OnceCell<VirtualFileSystem> = OnceCell::uninit();
 pub static CPUS: OnceCell<Cpus> = OnceCell::uninit();
+pub static PMM: OnceCell<Mutex<PhysicalMemoryManager>> = OnceCell::uninit();
 
 bootloader_api::entry_point!(kernel_main, config = &BOOTLOADER_CONFIG);
 fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
@@ -117,7 +118,13 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     });
     kernel_log!("VFS initialised");
 
-    kernel_log!("Allocating userspace...");
+    kernel_log!("Initialising scheduler");
+    scheduler::init();
+    kernel_log!("Scheduler initialised.");
+
+    PMM.get_or_init(|| Mutex::new(pmm));
+
+    kernel_log!("Creating init process...");
     let binary: &[u8] = unsafe {
         slice::from_raw_parts(
             VirtAddr::new(boot_info.ramdisk_addr.into_option().unwrap()).as_ptr(),
@@ -125,76 +132,19 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
         )
     };
 
-    kernel_log!("Allocated userspace.");
+    let init_process = UserProcess::new(mapper);
+    kernel_log!("Init process created");
 
-    kernel_log!("Initialising scheduler");
+    init_process
+        .lock()
+        .execve(binary, vec!["/init/init", "arg2", "arg3"], vec![])
+        .unwrap();
 
-    scheduler::init();
-    kernel_log!("Scheduler initialised.");
+    kernel_log!("execve completed.");
 
-    // let user_process = UserProcess::load_elf(
-    //     &mut mapper,
-    //     &mut pmm,
-    //     binary,
-    //     vec!["/init/init", "arg2", "arg3"], // The first arg is fake -- we don't have the ramdisk mapped to vfs yet
-    // )
-    // .unwrap();
-
-    // scheduler::enqueue(user_process.thread);
-
-    kernel_log!("Creating threads...");
-    scheduler::enqueue(Arc::new(Mutex::new(Thread::from_func(thread_1))));
-    scheduler::enqueue(Arc::new(Mutex::new(Thread::from_func(thread_2))));
+    scheduler::enqueue(init_process.lock().thread.clone());
 
     kernel_log!("Yielding to scheduler");
-    loop {
-        scheduler::yield_execution();
-    }
-}
-
-fn requeue_current_thread() {
-    kernel_log!("Requeuing current thread");
-    scheduler::enqueue(
-        CPUS.get()
-            .unwrap()
-            .get_cpu()
-            .current_thread
-            .as_mut()
-            .unwrap()
-            .clone(),
-    );
-}
-
-extern "sysv64" fn thread_1() {
-    let mut count: u8 = 0;
-
-    loop {
-        kernel_log!("From thread 1 (add 13): {}", count);
-        count = count.saturating_add(13);
-
-        if count == u8::MAX {
-            break;
-        }
-        requeue_current_thread();
-        scheduler::yield_execution();
-    }
-    loop {
-        scheduler::yield_execution();
-    }
-}
-extern "sysv64" fn thread_2() {
-    let mut count: u8 = 0;
-
-    loop {
-        kernel_log!("From thread 2 (add 15): {}", count);
-        count = count.saturating_add(15);
-
-        if count == u8::MAX {
-            break;
-        }
-        requeue_current_thread();
-        scheduler::yield_execution();
-    }
     loop {
         scheduler::yield_execution();
     }

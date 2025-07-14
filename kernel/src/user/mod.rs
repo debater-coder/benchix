@@ -1,14 +1,21 @@
+use core::arch::naked_asm;
+use core::sync::atomic::{AtomicU32, Ordering};
 use core::{arch::asm, slice};
 
 use alloc::ffi::CString;
+use alloc::sync::Weak;
 use alloc::{collections::btree_map::BTreeMap, vec};
 use alloc::{sync::Arc, vec::Vec};
-use spin::RwLock;
+use spin::{Mutex, RwLock};
+use x86_64::registers::control::{Cr3, Cr3Flags};
+use x86_64::structures::paging::PhysFrame;
 use x86_64::{
     structures::paging::{FrameAllocator, Mapper, OffsetPageTable, Page, PageTableFlags, Size4KiB},
     VirtAddr,
 };
 
+use crate::scheduler::Thread;
+use crate::PMM;
 use crate::{
     debug_println, filesystem::vfs::Inode, kernel_log, memory::PhysicalMemoryManager, CPUS,
 };
@@ -16,12 +23,10 @@ use crate::{
 pub mod constants;
 pub mod syscalls;
 
-unsafe fn allocate_user_page(
-    mapper: &mut OffsetPageTable,
-    pmm: &mut PhysicalMemoryManager,
-    page: Page,
-    flags: PageTableFlags,
-) {
+static NEXT_PID: AtomicU32 = AtomicU32::new(1);
+
+unsafe fn allocate_user_page(mapper: &mut OffsetPageTable, page: Page, flags: PageTableFlags) {
+    let mut pmm = PMM.get().unwrap().lock();
     mapper
         .map_to(
             page,
@@ -30,18 +35,20 @@ unsafe fn allocate_user_page(
                 | PageTableFlags::WRITABLE
                 | PageTableFlags::USER_ACCESSIBLE
                 | flags,
-            pmm,
+            &mut *pmm,
         )
         .unwrap()
         .flush();
 }
 
 pub struct UserProcess {
-    pub stack: VirtAddr, // Top of user stack
-    kstack: Vec<u64>,    // Top of kernel stack
-    entry: VirtAddr,
+    /// Open file descriptors
     pub files: BTreeMap<u32, Arc<RwLock<FileDescriptor>>>, // So that file descriptors can be shared
     next_fd: u32, // TODO: be less naive (if you repeatedly open and close file descriptors you will run out)
+    cr3: (PhysFrame, Cr3Flags),
+    pub mapper: OffsetPageTable<'static>,
+    pub thread: Arc<Mutex<Thread>>,
+    pub pid: u32,
 }
 
 pub struct FileDescriptor {
@@ -68,12 +75,31 @@ struct ProgramHeaderEntry {
 }
 
 impl UserProcess {
-    pub fn load_elf(
-        mapper: &mut OffsetPageTable<'_>,
-        pmm: &mut PhysicalMemoryManager,
+    /// Used for creating the initial process.
+    /// Reuses the initialisation page tables
+    pub fn new(mapper: OffsetPageTable<'static>) -> Arc<Mutex<Self>> {
+        let thread = Arc::new(Mutex::new(Thread::from_func(enter_userspace, Weak::new())));
+
+        let process = Arc::new(Mutex::new(UserProcess {
+            files: BTreeMap::new(),
+            next_fd: 0,
+            cr3: Cr3::read(),
+            mapper,
+            thread: thread.clone(),
+            pid: NEXT_PID.fetch_add(1, Ordering::Relaxed),
+        }));
+
+        thread.lock().process = Arc::downgrade(&process);
+
+        process
+    }
+
+    pub fn execve(
+        &mut self,
         binary: &[u8],
         args: Vec<&str>,
-    ) -> Result<Self, LoadingError> {
+        _env: Vec<&str>, // TODO
+    ) -> Result<(), LoadingError> {
         // Validate ELF header
         if binary[0x0..0x4] != *b"\x7fELF" // Magic
             || binary[0x4] != 2 // 64-bit
@@ -136,7 +162,12 @@ impl UserProcess {
             );
 
             for page in page_range {
-                let frame = pmm.allocate_frame().expect("Could not allocate frame.");
+                let frame = PMM
+                    .get()
+                    .unwrap()
+                    .lock()
+                    .allocate_frame()
+                    .expect("Could not allocate frame.");
 
                 let start_index = page
                     .start_address()
@@ -149,7 +180,7 @@ impl UserProcess {
 
                 let dst = unsafe {
                     slice::from_raw_parts_mut(
-                        (mapper.phys_offset() + frame.start_address().as_u64() + frame_offset)
+                        (self.mapper.phys_offset() + frame.start_address().as_u64() + frame_offset)
                             .as_mut_ptr(),
                         src.len(),
                     )
@@ -159,7 +190,7 @@ impl UserProcess {
 
                 // Create mappings
                 unsafe {
-                    mapper
+                    self.mapper
                         .map_to(
                             page,
                             frame,
@@ -179,7 +210,7 @@ impl UserProcess {
                                 } else {
                                     PageTableFlags::NO_EXECUTE
                                 }),
-                            pmm,
+                            &mut *PMM.get().unwrap().lock(),
                         )
                         .expect("Failed to create mappings")
                         .flush();
@@ -197,8 +228,7 @@ impl UserProcess {
         // Alloc page for info
         unsafe {
             allocate_user_page(
-                mapper,
-                pmm,
+                &mut self.mapper,
                 Page::<Size4KiB>::from_start_address(stack_top)
                     .expect("stack top to be page-aligned"),
                 PageTableFlags::NO_EXECUTE,
@@ -260,33 +290,34 @@ impl UserProcess {
 
         unsafe {
             for page in stack_range {
-                allocate_user_page(mapper, pmm, page, PageTableFlags::NO_EXECUTE);
+                allocate_user_page(&mut self.mapper, page, PageTableFlags::NO_EXECUTE);
             }
         }
 
-        Ok(UserProcess {
-            entry: VirtAddr::new(u64::from_ne_bytes(binary[0x18..0x20].try_into().unwrap())),
-            kstack: vec![0; 2 * 4096],
-            stack: stack_top,
-            files: BTreeMap::new(),
-            next_fd: 0,
-        })
-    }
+        // Userspace entry point
+        let entry = u64::from_ne_bytes(binary[0x18..0x20].try_into().unwrap());
+        self.thread.lock().context.rbp = entry;
+        // Userspace stack pointer
+        self.thread.lock().context.rbx = stack_top.as_u64();
 
-    pub fn enter_userspace(&self) {
-        kernel_log!("Sysret'ing to executable entry point: {:?}", self.entry);
-        unsafe {
-            x86_64::instructions::interrupts::disable(); // To avoid handling interrupts with user stack
-                                                         // Switch kernel stack
-            let top = VirtAddr::from_ptr(&self.kstack.last());
-            CPUS.get().unwrap().get_cpu().set_kernel_stack(top);
-            asm!(
-                "mov rsp, {}", // Stacks grow downwards
-                "mov r11, 0x0202",             // Bit 9 is set, thus interrupts are enabled
-                "sysretq",
-                in(reg) self.stack.as_u64(),
-                in("rcx") self.entry.as_u64()
-            );
-        }
+        kernel_log!("Userspace entry point {:x}", entry);
+
+        Ok(())
     }
+}
+
+/// Enters userspace, enabling interrupts. Since thread entry points
+/// can't take parameters:
+/// - rbp stores userspace entry point
+/// - rbx stores userspace stack pointer
+#[naked]
+unsafe extern "sysv64" fn enter_userspace() {
+    naked_asm!(
+        // We must keep the userspace stack in rbx, since the kstack
+        // is used to 'return' into here.
+        "mov rsp, rbx
+        mov rcx, rbp
+        mov r11, 0x0202
+        sysretq"
+    )
 }

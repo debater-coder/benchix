@@ -6,7 +6,7 @@ use spin::Mutex;
 use x86_64::instructions::segmentation::Segment;
 use x86_64::instructions::segmentation::{CS, DS, ES, FS, GS, SS};
 use x86_64::instructions::tables::load_tss;
-use x86_64::registers::control::{Cr4, Cr4Flags, Efer, EferFlags};
+use x86_64::registers::control::{Efer, EferFlags};
 use x86_64::registers::model_specific::{LStar, SFMask, Star};
 use x86_64::registers::rflags::RFlags;
 use x86_64::structures::gdt::{Descriptor, GlobalDescriptorTable};
@@ -29,7 +29,6 @@ pub struct PerCpu {
     tss: &'static mut TaskStateSegment,
     pub current_thread: Option<Arc<Mutex<Thread>>>,
     pub next_thread: Option<Arc<Mutex<Thread>>>,
-    pub current_process: Option<UserProcess>,
 }
 
 impl PerCpu {
@@ -46,13 +45,22 @@ impl PerCpu {
             stack_end // stacks grow downwards
         };
 
+        tss.privilege_stack_table[0] = {
+            const STACK_SIZE: usize = 4096 * 5;
+            static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
+
+            let stack_start = VirtAddr::from_ptr(unsafe { &raw const STACK });
+            let stack_end = stack_start + STACK_SIZE as u64;
+
+            stack_end // stacks grow downwards
+        };
+
         // Setting up gdt
         let gdt = GlobalDescriptorTable::new();
 
         PerCpu {
             gdt,
             tss,
-            current_process: None,
             current_thread: None,
             next_thread: None,
         }
@@ -88,14 +96,6 @@ impl PerCpu {
         .unwrap();
         LStar::write(VirtAddr::from_ptr(handle_syscall as *const ()));
         SFMask::write(RFlags::INTERRUPT_FLAG);
-    }
-
-    pub fn get_kernel_stack(&self) -> VirtAddr {
-        self.tss.privilege_stack_table[0]
-    }
-
-    pub fn set_kernel_stack(&mut self, top: VirtAddr) {
-        self.tss.privilege_stack_table[0] = top;
     }
 }
 

@@ -1,10 +1,4 @@
-use alloc::{
-    boxed::Box,
-    collections::btree_map::BTreeMap,
-    string::{String, ToString},
-    sync::Arc,
-    vec::Vec,
-};
+use alloc::{boxed::Box, collections::btree_map::BTreeMap, string::ToString, sync::Arc, vec::Vec};
 
 use super::vfs::{DirectoryEntry, FileType, Filesystem, FilesystemError, Inode};
 

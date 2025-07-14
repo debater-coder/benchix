@@ -1,12 +1,11 @@
 use core::{arch::naked_asm, ffi::CStr, slice};
 
 use alloc::sync::Arc;
-use spin::RwLock;
+use spin::{Mutex, RwLock};
 use x86_64::{registers::model_specific::FsBase, VirtAddr};
 
 use crate::{
     filesystem::vfs::Filesystem,
-    kernel_log,
     user::{
         constants::{EBADF, EFAULT, ENOSYS, O_ACCMODE, O_RDONLY, O_RDWR, O_WRONLY},
         FileDescriptor,
@@ -20,18 +19,30 @@ use super::{
 };
 
 extern "sysv64" fn get_kernel_stack() -> u64 {
-    CPUS.get().unwrap().get_cpu().get_kernel_stack().as_u64()
+    CPUS.get()
+        .unwrap()
+        .get_cpu()
+        .current_thread
+        .as_mut()
+        .unwrap()
+        .lock()
+        .context
+        .rsp
 }
 
 /// Gets the current process (for syscalls)
 /// # Panics
 /// If there is no current process or the CPU struct isn't initialised
-fn get_current_process() -> &'static mut UserProcess {
+fn get_current_process() -> Arc<Mutex<UserProcess>> {
     CPUS.get()
         .unwrap()
         .get_cpu()
-        .current_process
+        .current_thread
         .as_mut()
+        .unwrap()
+        .lock()
+        .process
+        .upgrade()
         .expect("No current process")
 }
 
@@ -50,13 +61,15 @@ fn check_buffer(buffer: &[u8]) -> bool {
 }
 
 fn read(fd: u32, buf: *mut u8, count: usize) -> usize {
-    kernel_log!("read({}, {:?}, {})", fd, buf, count);
+    debug_println!("read({}, {:?}, {})", fd, buf, count);
     let buf = unsafe { slice::from_raw_parts_mut(buf, count) };
     if !check_buffer(buf) {
         return -EFAULT as usize;
     }
 
-    let fd = get_current_process().files.get(&fd);
+    let process = get_current_process();
+    let process = process.lock();
+    let fd = process.files.get(&fd);
 
     let mut fd = match fd {
         None => return -EBADF as usize,
@@ -79,14 +92,16 @@ fn read(fd: u32, buf: *mut u8, count: usize) -> usize {
 }
 
 fn write(fd: u32, buf: *mut u8, count: usize) -> usize {
-    kernel_log!("write({}, {:?}, {})", fd, buf, count);
+    debug_println!("write({}, {:?}, {})", fd, buf, count);
 
     let buf = unsafe { slice::from_raw_parts_mut(buf, count) };
     if !check_buffer(buf) {
         return -EFAULT as usize;
     }
 
-    let fd = get_current_process().files.get(&fd);
+    let process = get_current_process();
+    let process = process.lock();
+    let fd = process.files.get(&fd);
 
     let mut fd = match fd {
         None => return -EBADF as usize,
@@ -111,9 +126,10 @@ fn write(fd: u32, buf: *mut u8, count: usize) -> usize {
 fn open(pathname: *const i8, flags: u32) -> u64 {
     let pathname = unsafe { CStr::from_ptr(pathname) }.to_str().unwrap();
     assert!(check_buffer(pathname.as_bytes()));
-    kernel_log!("open({:?}, {:?})", pathname, flags);
+    debug_println!("open({:?}, {:?})", pathname, flags);
 
     let process = get_current_process();
+    let mut process = process.lock();
 
     let vfs = VFS.get().unwrap();
 
@@ -132,22 +148,22 @@ fn open(pathname: *const i8, flags: u32) -> u64 {
     );
     process.next_fd += 1;
 
-    kernel_log!("Opened to fd: {}", fd);
+    debug_println!("Opened to fd: {}", fd);
     fd as u64
 }
 
 fn close(fd: u32) -> u64 {
-    kernel_log!("close({})", fd);
+    debug_println!("close({})", fd);
     0
 }
 
 fn exit(status: i32) -> ! {
-    kernel_log!("Process exited with code {}", status);
+    debug_println!("Process exited with code {}", status);
     loop {}
 }
 
 fn arch_prctl(op: u32, addr: u64) -> u64 {
-    kernel_log!("arch_prctl({:x}, {:x})", op, addr);
+    debug_println!("arch_prctl({:x}, {:x})", op, addr);
     match op {
         ARCH_SET_FS => {
             let addr = VirtAddr::new(addr);
@@ -179,7 +195,7 @@ pub extern "sysv64" fn handle_syscall_inner(
         231 => exit(arg0 as i32),
         60 => exit(arg0 as i32),
         _ => {
-            kernel_log!(
+            debug_println!(
                 "Unknown syscall {}: ({}, {}, {}, {})",
                 syscall_number,
                 arg0,

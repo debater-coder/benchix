@@ -1,7 +1,7 @@
 use lazy_static::lazy_static;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
 
-use crate::{filesystem::vfs::Filesystem, lapic::lapic_end_of_interrupt, VFS};
+use crate::{filesystem::vfs::Filesystem, lapic::lapic_end_of_interrupt, scheduler, VFS};
 
 lazy_static! {
     static ref IDT: InterruptDescriptorTable = {
@@ -61,10 +61,6 @@ pub fn init_idt() {
 extern "x86-interrupt" fn spurious(_interrupt_stack_frame: InterruptStackFrame) {}
 
 extern "x86-interrupt" fn lapic_timer(_interrupt_stack_frame: InterruptStackFrame) {
-    let vfs = VFS.get().unwrap();
-    let root = vfs.root.clone();
-    let console = vfs.traverse_fs(root, "/dev/console").unwrap();
-    vfs.write(console, 0, ".".as_bytes()).unwrap();
     unsafe {
         lapic_end_of_interrupt();
     }
