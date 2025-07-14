@@ -5,12 +5,15 @@
 extern crate alloc;
 
 use alloc::boxed::Box;
+use alloc::sync::Arc;
 use conquer_once::spin::OnceCell;
 use cpu::{Cpus, PerCpu};
 use filesystem::devfs::Devfs;
 use filesystem::initrd::Initrd;
 use filesystem::vfs::VirtualFileSystem;
 use lapic::Lapic;
+use scheduler::Thread;
+use spin::mutex::Mutex;
 use user::UserProcess;
 use x86_64::registers::model_specific::Msr;
 use x86_64::VirtAddr;
@@ -23,6 +26,7 @@ mod interrupts;
 mod lapic;
 mod memory;
 mod panic;
+mod scheduler;
 mod user;
 
 use crate::console::Console;
@@ -114,26 +118,71 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     kernel_log!("VFS initialised");
 
     kernel_log!("Allocating userspace...");
-    let binary = unsafe {
+    let binary: &[u8] = unsafe {
         slice::from_raw_parts(
             VirtAddr::new(boot_info.ramdisk_addr.into_option().unwrap()).as_ptr(),
             boot_info.ramdisk_len as usize,
         )
     };
 
-    let user_process = UserProcess::load_elf(
-        &mut mapper,
-        &mut pmm,
-        binary,
-        vec!["/init/init", "arg2", "arg3"], // The first arg is fake -- we don't have the ramdisk mapped to vfs yet
-    )
-    .unwrap();
-
     kernel_log!("Allocated userspace.");
-    kernel_log!("Switching to userspace...");
-    CPUS.get().unwrap().get_cpu().switch(user_process);
-    kernel_log!("Returned to kernel?");
+
+    kernel_log!("Initialising scheduler");
+
+    scheduler::init();
+    kernel_log!("Scheduler initialised.");
+
+    // let user_process = UserProcess::load_elf(
+    //     &mut mapper,
+    //     &mut pmm,
+    //     binary,
+    //     vec!["/init/init", "arg2", "arg3"], // The first arg is fake -- we don't have the ramdisk mapped to vfs yet
+    // )
+    // .unwrap();
+
+    // scheduler::enqueue(user_process.thread);
+
+    kernel_log!("Creating threads...");
+    scheduler::enqueue(Arc::new(Mutex::new(Thread::from_func(thread_1))));
+    scheduler::enqueue(Arc::new(Mutex::new(Thread::from_func(thread_2))));
+
+    kernel_log!("Yielding to scheduler");
     loop {
-        hlt();
+        scheduler::yield_execution();
+    }
+}
+
+fn requeue_current_thread() {
+    kernel_log!("Requeuing current thread");
+    scheduler::enqueue(
+        CPUS.get()
+            .unwrap()
+            .get_cpu()
+            .current_thread
+            .as_mut()
+            .unwrap()
+            .clone(),
+    );
+}
+
+extern "sysv64" fn thread_1() {
+    let mut count: u8 = 0;
+
+    loop {
+        kernel_log!("From thread 1 (add 13): {}", count);
+        count = count.wrapping_add(13);
+        requeue_current_thread();
+        scheduler::yield_execution();
+    }
+}
+extern "sysv64" fn thread_2() {
+    let mut count: u8 = 0;
+
+    loop {
+        kernel_log!("From thread 2 (add 15): {}", count);
+        count = count.wrapping_add(15);
+
+        requeue_current_thread();
+        scheduler::yield_execution();
     }
 }

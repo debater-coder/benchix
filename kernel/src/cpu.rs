@@ -1,6 +1,8 @@
 use core::cell::UnsafeCell;
 
 use alloc::boxed::Box;
+use alloc::sync::Arc;
+use spin::Mutex;
 use x86_64::instructions::segmentation::Segment;
 use x86_64::instructions::segmentation::{CS, DS, ES, FS, GS, SS};
 use x86_64::instructions::tables::load_tss;
@@ -11,6 +13,7 @@ use x86_64::structures::gdt::{Descriptor, GlobalDescriptorTable};
 use x86_64::structures::tss::TaskStateSegment;
 use x86_64::VirtAddr;
 
+use crate::scheduler::Thread;
 use crate::user::syscalls::handle_syscall;
 use crate::user::UserProcess;
 
@@ -24,6 +27,8 @@ pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
 pub struct PerCpu {
     pub gdt: GlobalDescriptorTable,
     tss: &'static mut TaskStateSegment,
+    pub current_thread: Option<Arc<Mutex<Thread>>>,
+    pub next_thread: Option<Arc<Mutex<Thread>>>,
     pub current_process: Option<UserProcess>,
 }
 
@@ -48,6 +53,8 @@ impl PerCpu {
             gdt,
             tss,
             current_process: None,
+            current_thread: None,
+            next_thread: None,
         }
     }
 
@@ -81,11 +88,6 @@ impl PerCpu {
         .unwrap();
         LStar::write(VirtAddr::from_ptr(handle_syscall as *const ()));
         SFMask::write(RFlags::INTERRUPT_FLAG);
-    }
-
-    pub fn switch(&mut self, process: UserProcess) {
-        self.current_process = Some(process);
-        self.current_process.as_ref().unwrap().switch();
     }
 
     pub fn get_kernel_stack(&self) -> VirtAddr {

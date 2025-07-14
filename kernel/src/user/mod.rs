@@ -39,7 +39,7 @@ unsafe fn allocate_user_page(
 pub struct UserProcess {
     pub stack: VirtAddr, // Top of user stack
     kstack: Vec<u64>,    // Top of kernel stack
-    rip: VirtAddr,
+    entry: VirtAddr,
     pub files: BTreeMap<u32, Arc<RwLock<FileDescriptor>>>, // So that file descriptors can be shared
     next_fd: u32, // TODO: be less naive (if you repeatedly open and close file descriptors you will run out)
 }
@@ -265,7 +265,7 @@ impl UserProcess {
         }
 
         Ok(UserProcess {
-            rip: VirtAddr::new(u64::from_ne_bytes(binary[0x18..0x20].try_into().unwrap())),
+            entry: VirtAddr::new(u64::from_ne_bytes(binary[0x18..0x20].try_into().unwrap())),
             kstack: vec![0; 2 * 4096],
             stack: stack_top,
             files: BTreeMap::new(),
@@ -273,8 +273,8 @@ impl UserProcess {
         })
     }
 
-    pub fn switch(&self) {
-        kernel_log!("Sysret'ing to executable entry point: {:?}", self.rip);
+    pub fn enter_userspace(&self) {
+        kernel_log!("Sysret'ing to executable entry point: {:?}", self.entry);
         unsafe {
             x86_64::instructions::interrupts::disable(); // To avoid handling interrupts with user stack
                                                          // Switch kernel stack
@@ -285,7 +285,7 @@ impl UserProcess {
                 "mov r11, 0x0202",             // Bit 9 is set, thus interrupts are enabled
                 "sysretq",
                 in(reg) self.stack.as_u64(),
-                in("rcx") self.rip.as_u64()
+                in("rcx") self.entry.as_u64()
             );
         }
     }
