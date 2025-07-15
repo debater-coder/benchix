@@ -64,7 +64,7 @@ impl Filesystem for Devfs {
     fn read(
         &self,
         inode: alloc::sync::Arc<super::vfs::Inode>,
-        offset: u64,
+        _offset: u64,
         buffer: &mut [u8],
     ) -> Result<usize, super::vfs::FilesystemError> {
         if let (Some(1), Some(1)) = (inode.major, inode.minor) {
@@ -77,7 +77,7 @@ impl Filesystem for Devfs {
     fn write(
         &self,
         inode: alloc::sync::Arc<super::vfs::Inode>,
-        offset: u64,
+        _offset: u64,
         buffer: &[u8],
     ) -> Result<usize, super::vfs::FilesystemError> {
         if let (Some(1), Some(1)) = (inode.major, inode.minor) {

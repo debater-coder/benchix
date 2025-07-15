@@ -5,7 +5,6 @@
 extern crate alloc;
 
 use alloc::boxed::Box;
-use alloc::sync::Arc;
 use conquer_once::spin::OnceCell;
 use cpu::{Cpus, PerCpu};
 use filesystem::devfs::Devfs;
@@ -13,7 +12,6 @@ use filesystem::initrd::Initrd;
 use filesystem::vfs::VirtualFileSystem;
 use lapic::Lapic;
 use memory::PhysicalMemoryManager;
-use scheduler::Thread;
 use spin::mutex::Mutex;
 use user::UserProcess;
 use x86_64::registers::model_specific::Msr;
@@ -26,6 +24,7 @@ mod filesystem;
 mod interrupts;
 mod lapic;
 mod memory;
+#[allow(dead_code, unused_imports)]
 mod panic;
 mod scheduler;
 mod user;

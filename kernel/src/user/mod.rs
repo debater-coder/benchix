@@ -1,10 +1,10 @@
 use core::arch::naked_asm;
+use core::slice;
 use core::sync::atomic::{AtomicU32, Ordering};
-use core::{arch::asm, slice};
 
+use alloc::collections::btree_map::BTreeMap;
 use alloc::ffi::CString;
 use alloc::sync::Weak;
-use alloc::{collections::btree_map::BTreeMap, vec};
 use alloc::{sync::Arc, vec::Vec};
 use spin::{Mutex, RwLock};
 use x86_64::registers::control::{Cr3, Cr3Flags};
@@ -16,11 +16,11 @@ use x86_64::{
 
 use crate::scheduler::Thread;
 use crate::PMM;
-use crate::{
-    debug_println, filesystem::vfs::Inode, kernel_log, memory::PhysicalMemoryManager, CPUS,
-};
+use crate::{debug_println, filesystem::vfs::Inode, kernel_log};
 
+#[allow(dead_code)]
 pub mod constants;
+
 pub mod syscalls;
 
 static NEXT_PID: AtomicU32 = AtomicU32::new(1);
@@ -45,6 +45,7 @@ pub struct UserProcess {
     /// Open file descriptors
     pub files: BTreeMap<u32, Arc<RwLock<FileDescriptor>>>, // So that file descriptors can be shared
     next_fd: u32, // TODO: be less naive (if you repeatedly open and close file descriptors you will run out)
+    #[allow(dead_code)]
     cr3: (PhysFrame, Cr3Flags),
     pub mapper: OffsetPageTable<'static>,
     pub thread: Arc<Mutex<Thread>>,

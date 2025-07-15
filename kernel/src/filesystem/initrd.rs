@@ -55,11 +55,11 @@ impl Initrd {
 }
 
 impl Filesystem for Initrd {
-    fn open(&self, inode: Arc<Inode>) -> Result<(), super::vfs::FilesystemError> {
+    fn open(&self, _inode: Arc<Inode>) -> Result<(), super::vfs::FilesystemError> {
         Ok(())
     }
 
-    fn close(&self, inode: Arc<Inode>) -> Result<(), super::vfs::FilesystemError> {
+    fn close(&self, _inode: Arc<Inode>) -> Result<(), super::vfs::FilesystemError> {
         Ok(())
     }
 
@@ -87,9 +87,9 @@ impl Filesystem for Initrd {
 
     fn write(
         &self,
-        inode: Arc<Inode>,
-        offset: u64,
-        buffer: &[u8],
+        _inode: Arc<Inode>,
+        _offset: u64,
+        _buffer: &[u8],
     ) -> Result<usize, super::vfs::FilesystemError> {
         Err(FilesystemError::WrongType)
     }

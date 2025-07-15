@@ -13,15 +13,9 @@ use alloc::{
 };
 use conquer_once::spin::OnceCell;
 use spin::Mutex;
-use x86_64::{
-    instructions::{
-        hlt,
-        interrupts::{self, enable, enable_and_hlt},
-    },
-    VirtAddr,
-};
+use x86_64::{instructions::interrupts, VirtAddr};
 
-use crate::{kernel_log, user::UserProcess, CPUS};
+use crate::{user::UserProcess, CPUS};
 
 static READY: OnceCell<Mutex<VecDeque<Arc<Mutex<Thread>>>>> = OnceCell::uninit();
 static NEXT_TID: AtomicU32 = AtomicU32::new(0);

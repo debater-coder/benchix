@@ -7,6 +7,7 @@ use x86_64::{
 
 use crate::{memory::PhysicalMemoryManager, LAPIC_START_VIRT};
 
+#[allow(dead_code)]
 pub const LAPIC_ID_OFFSET: u64 = 0x20;
 pub const SIVR_OFFSET: u64 = 0xf0;
 pub const DESTINATION_FORMAT_OFFSET: u64 = 0xe0;
@@ -39,6 +40,7 @@ pub struct Lapic {
 }
 
 impl Lapic {
+    #[allow(dead_code)]
     pub fn lapic_id(&self) -> u8 {
         ((self.read(LAPIC_ID_OFFSET)) >> 24) as u8
     }
