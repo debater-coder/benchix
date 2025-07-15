@@ -175,15 +175,17 @@ impl fmt::Write for DebugCons {
 
 #[macro_export]
 macro_rules! debug_print {
-    ($($arg:tt)*) => (<crate::console::DebugCons as core::fmt::Write>::write_fmt(&mut crate::console::DebugCons {}, format_args!($($arg)*)));
+    ($($arg:tt)*) => {
+        let _ = <crate::console::DebugCons as core::fmt::Write>::write_fmt(&mut crate::console::DebugCons {}, format_args!($($arg)*));
+    };
 }
 
 #[macro_export]
 macro_rules! debug_println {
     () => {
-        let _ = $crate::debug_print!("\n");
+        $crate::debug_print!("\n");
     };
     ($($arg:tt)*) => {
-        let _ = $crate::debug_print!("{}\n", format_args!($($arg)*));
+        $crate::debug_print!("{}\n", format_args!($($arg)*));
     };
 }

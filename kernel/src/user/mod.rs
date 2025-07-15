@@ -78,7 +78,11 @@ impl UserProcess {
     /// Used for creating the initial process.
     /// Reuses the initialisation page tables
     pub fn new(mapper: OffsetPageTable<'static>) -> Arc<Mutex<Self>> {
-        let thread = Arc::new(Mutex::new(Thread::from_func(enter_userspace, Weak::new())));
+        let thread = Arc::new(Mutex::new(Thread::from_func(
+            enter_userspace,
+            Weak::new(),
+            None,
+        )));
 
         let process = Arc::new(Mutex::new(UserProcess {
             files: BTreeMap::new(),

@@ -4,14 +4,22 @@ use core::{
 };
 
 use alloc::{
+    borrow::ToOwned,
     collections::vec_deque::VecDeque,
+    string::String,
     sync::{Arc, Weak},
     vec,
     vec::Vec,
 };
 use conquer_once::spin::OnceCell;
 use spin::Mutex;
-use x86_64::instructions::interrupts::{self, enable_and_hlt};
+use x86_64::{
+    instructions::{
+        hlt,
+        interrupts::{self, enable, enable_and_hlt},
+    },
+    VirtAddr,
+};
 
 use crate::{kernel_log, user::UserProcess, CPUS};
 
@@ -51,11 +59,13 @@ pub struct Thread {
     pub process: Weak<Mutex<UserProcess>>,
     /// Thread id
     pub tid: u32,
+    pub name: Option<String>,
 }
 
 impl core::fmt::Debug for Thread {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("Thread")
+            .field("name", &self.name.clone().unwrap_or("<no name>".to_owned()))
             .field("context", &format_args!("{:x?}", self.context))
             .field("process", &format_args!("{:?}", self.process))
             .finish()
@@ -66,12 +76,14 @@ impl Thread {
     pub fn from_func(
         func: unsafe extern "sysv64" fn(),
         process: Weak<Mutex<UserProcess>>,
+        name: Option<String>,
     ) -> Thread {
         let mut thread = Thread {
             context: Context::new(),
             kstack: vec![0; 2 * 4096],
             process,
             tid: NEXT_TID.fetch_add(1, Ordering::Relaxed),
+            name,
         };
 
         // Put the return address on the top of the stack
@@ -167,7 +179,9 @@ unsafe extern "sysv64" fn switch_finish_hook() {
     cpu.current_thread = cpu.next_thread.clone();
     cpu.next_thread = None;
 
-    READY.get().unwrap().force_unlock();
+    cpu.set_ist(VirtAddr::new(
+        cpu.current_thread.clone().unwrap().lock().context.rsp,
+    ));
 }
 
 /// Yields to scheduler, but keep current thread in queue.
@@ -181,37 +195,37 @@ pub fn yield_and_continue() {
 /// Yields to scheduler to decide what should use CPU time.
 pub fn yield_execution() {
     interrupts::disable();
-    debug_print!(".");
-    if let Some(next_thread) = READY
-        .get()
-        .expect("scheduler::init should have been called")
-        .lock()
-        .pop_front()
-    {
-        let current_thread = CPUS.get().unwrap().get_cpu().current_thread.as_mut();
 
-        let prev: &mut Context = match current_thread {
-            None => &mut Context::new(), // Dummy context
-            Some(thread) => {
-                // If the next thread and the current thread is the same, we will deadlock
-                if Arc::ptr_eq(&thread.clone(), &next_thread) {
-                    return;
-                }
+    let cpu = CPUS.get().unwrap().get_cpu();
+    let next_thread = {
+        READY
+            .get()
+            .expect("scheduler::init should have been called")
+            .lock()
+            .pop_front()
+    }
+    .unwrap_or(cpu.idle_thread.clone());
 
-                &mut thread.lock().context
+    let current_thread = cpu.current_thread.as_mut();
+
+    let prev: &mut Context = match current_thread {
+        None => &mut Context::new(), // Dummy context
+        Some(thread) => {
+            // If the next thread and the current thread is the same, we will deadlock
+            if Arc::ptr_eq(&thread.clone(), &next_thread) {
+                debug_print!(".");
+                return;
             }
-        };
-
-        let next = { next_thread.lock().context.clone() }; // The lock will be released after this
-
-        CPUS.get().unwrap().get_cpu().next_thread = Some(next_thread.clone());
-
-        unsafe {
-            switch_to(prev, &next);
+            debug_println!("Switching from {:?} to {:?}", thread, next_thread);
+            &mut thread.lock().context
         }
-    } else {
-        if CPUS.get().unwrap().get_cpu().current_thread.is_none() {
-            enable_and_hlt();
-        }
+    };
+
+    let next = { next_thread.lock().context.clone() }; // The lock will be released after this
+
+    CPUS.get().unwrap().get_cpu().next_thread = Some(next_thread.clone());
+
+    unsafe {
+        switch_to(prev, &next);
     }
 }

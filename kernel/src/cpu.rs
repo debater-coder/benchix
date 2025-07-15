@@ -1,8 +1,10 @@
 use core::cell::UnsafeCell;
 
+use alloc::borrow::ToOwned;
 use alloc::boxed::Box;
-use alloc::sync::Arc;
+use alloc::sync::{Arc, Weak};
 use spin::Mutex;
+use x86_64::instructions::interrupts::enable_and_hlt;
 use x86_64::instructions::segmentation::Segment;
 use x86_64::instructions::segmentation::{CS, DS, ES, FS, GS, SS};
 use x86_64::instructions::tables::load_tss;
@@ -15,7 +17,6 @@ use x86_64::VirtAddr;
 
 use crate::scheduler::Thread;
 use crate::user::syscalls::handle_syscall;
-use crate::user::UserProcess;
 
 pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
 
@@ -29,6 +30,7 @@ pub struct PerCpu {
     tss: &'static mut TaskStateSegment,
     pub current_thread: Option<Arc<Mutex<Thread>>>,
     pub next_thread: Option<Arc<Mutex<Thread>>>,
+    pub idle_thread: Arc<Mutex<Thread>>,
 }
 
 impl PerCpu {
@@ -36,16 +38,6 @@ impl PerCpu {
     pub unsafe fn init_cpu() -> Self {
         let tss = Box::leak(Box::new(TaskStateSegment::new()));
         tss.interrupt_stack_table[DOUBLE_FAULT_IST_INDEX as usize] = {
-            const STACK_SIZE: usize = 4096 * 5;
-            static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
-
-            let stack_start = VirtAddr::from_ptr(unsafe { &raw const STACK });
-            let stack_end = stack_start + STACK_SIZE as u64;
-
-            stack_end // stacks grow downwards
-        };
-
-        tss.privilege_stack_table[0] = {
             const STACK_SIZE: usize = 4096 * 5;
             static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
 
@@ -63,7 +55,16 @@ impl PerCpu {
             tss,
             current_thread: None,
             next_thread: None,
+            idle_thread: Arc::new(Mutex::new(Thread::from_func(
+                idle,
+                Weak::new(),
+                Some("idle".to_owned()),
+            ))),
         }
+    }
+
+    pub unsafe fn set_ist(&mut self, top: VirtAddr) {
+        self.tss.privilege_stack_table[0] = top;
     }
 
     pub unsafe fn init_gdt(&'static mut self) {
@@ -120,3 +121,9 @@ impl Cpus {
 
 unsafe impl Send for Cpus {}
 unsafe impl Sync for Cpus {}
+
+extern "sysv64" fn idle() {
+    loop {
+        enable_and_hlt();
+    }
+}

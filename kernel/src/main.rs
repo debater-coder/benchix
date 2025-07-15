@@ -100,7 +100,7 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     let mut apic_base_msr = Msr::new(0x1b);
     unsafe { apic_base_msr.write(apic_base_msr.read() | (1 << 11)) };
     let mut lapic = unsafe { Lapic::new(&mut mapper, &mut pmm, 0xff) };
-    lapic.configure_timer(0x31, 10000, lapic::TimerDivideConfig::DivideBy16);
+    lapic.configure_timer(0x31, 1_000_000, lapic::TimerDivideConfig::DivideBy16);
     early_log!(&mut console, "APIC timer initialised.");
     early_log!(&mut console, "Ramdisk size: {}", boot_info.ramdisk_len);
 
