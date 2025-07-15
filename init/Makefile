@@ -1,2 +1,2 @@
 init: $(wildcard src/*.c src/*.h)
-	gcc -Wall -nostdlib src/init.c -o init
+	gcc -Wall -nostdlib -fno-stack-protector src/init.c -o init

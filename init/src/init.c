@@ -12,5 +12,18 @@ int main(int argc, char *argv[]) {
     puts("\n");
   }
 
+  char *buf[100];
+
+  for (;;) {
+    puts(">");
+    int count = read(STDIN_FD, buf, 100);
+
+    if (count == 0) {
+      break;
+    }
+
+    write(STDOUT_FD, buf, count);
+  }
+
   return 42;
 }

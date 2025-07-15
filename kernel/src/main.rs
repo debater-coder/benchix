@@ -1,5 +1,5 @@
 #![feature(naked_functions)]
-#![feature(abi_x86_interrupt, new_zeroed_alloc)]
+#![feature(abi_x86_interrupt, new_zeroed_alloc, allocator_api, let_chains)]
 #![no_std]
 #![no_main]
 extern crate alloc;
@@ -11,20 +11,18 @@ use cpu::{Cpus, PerCpu};
 use filesystem::devfs::Devfs;
 use filesystem::initrd::Initrd;
 use filesystem::vfs::VirtualFileSystem;
-use lapic::Lapic;
 use memory::PhysicalMemoryManager;
 use spin::mutex::Mutex;
 use user::UserProcess;
-use x86_64::registers::model_specific::Msr;
 use x86_64::VirtAddr;
 
 #[macro_use]
 mod console;
 mod acpi_handler;
+mod apic;
 mod cpu;
 mod filesystem;
 mod interrupts;
-mod lapic;
 mod memory;
 #[allow(dead_code, unused_imports)]
 mod panic;
@@ -34,13 +32,14 @@ mod user;
 use crate::console::Console;
 use alloc::{slice, vec};
 
-use bootloader_api::config::Mapping;
 use bootloader_api::BootloaderConfig;
+use bootloader_api::config::Mapping;
 
 pub const HEAP_START: u64 = 0x_ffff_9000_0000_0000;
 pub const KERNEL_STACK_START: u64 = 0xffff_f700_0000_0000;
 pub const KERNEL_STACK_SIZE: u64 = 80 * 1024; // 80 Kb
 pub const LAPIC_START_VIRT: u64 = 0xffff_8fff_ffff_0000;
+pub const IOAPIC_START_VIRT: u64 = 0xffff_a000_0000_0000;
 
 pub static BOOTLOADER_CONFIG: BootloaderConfig = {
     let mut config = BootloaderConfig::new_default();
@@ -87,6 +86,8 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
         .into_option()
         .expect("Expected recursive index");
 
+    // The mapper will create kernel memory mappings, which will be frozen from after first process creation.
+    // These mappings will be inherited by all future processes.
     let (mut mapper, pmm) = unsafe { memory::init(physical_offset, &boot_info.memory_regions) };
     PMM.get_or_init(|| Mutex::new(pmm));
 
@@ -102,7 +103,7 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     let acpi_tables = unsafe {
         AcpiTables::from_rsdp(
             acpi_handler::Handler {
-                phys_offset: mapper.phys_offset(),
+                phys_offset: VirtAddr::new(physical_offset),
             },
             boot_info.rsdp_addr.into_option().unwrap() as usize,
         )
@@ -112,19 +113,16 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     let platform_info = PlatformInfo::new(&acpi_tables).unwrap();
     early_log!(&mut console, "Parsed ACPI tables: {:#?}", platform_info);
 
-    early_log!(&mut console, "Initialising APIC timer...");
-    let mut apic_base_msr = Msr::new(0x1b);
-    unsafe { apic_base_msr.write(apic_base_msr.read() | (1 << 11)) };
-    let mut lapic = unsafe { Lapic::new(&mut mapper, 0xff) };
-    lapic.configure_timer(0x31, 1_000_000, lapic::TimerDivideConfig::DivideBy16);
+    early_log!(&mut console, "Initialising APIC devices...");
 
     early_log!(&mut console, "APIC timer initialised.");
+    apic::enable(&mut mapper, &platform_info.interrupt_model);
     early_log!(&mut console, "Ramdisk size: {}", boot_info.ramdisk_len);
 
     early_log!(&mut console, "Initialising VFS...");
     VFS.init_once(|| {
         let mut vfs = VirtualFileSystem::new();
-        let devfs = Devfs::new(console, 1);
+        let devfs = Devfs::init(console, 1);
         let initrd = Initrd::from_files(
             2,
             vec![("hello_world.txt", "Hello from initrd!".as_bytes())],

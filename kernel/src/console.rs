@@ -55,10 +55,6 @@ impl Console {
         &self.characters[(row * self.cols + col + self.offset) % (self.rows * self.cols)]
     }
 
-    pub fn read(&mut self, _buf: &[u8]) -> usize {
-        unimplemented!()
-    }
-
     fn newline(&mut self) -> bool {
         let mut need_redraw = false;
         if self.row >= (self.rows - 1) {
@@ -93,6 +89,12 @@ impl Console {
     }
 
     fn update_character(&mut self, row: usize, col: usize) {
+        let is_cursor = if row == self.row && col == self.col {
+            0xff
+        } else {
+            0
+        };
+
         let character_width = get_raster_width(FontWeight::Regular, SIZE);
 
         let x = col * character_width;
@@ -108,9 +110,9 @@ impl Console {
                 let x = x + col_i;
                 let y = y + row_i;
                 let base = (y * info.stride + x) * info.bytes_per_pixel;
-                self.framebuffer.raw_framebuffer[base] = *pixel;
-                self.framebuffer.raw_framebuffer[base + 1] = *pixel;
-                self.framebuffer.raw_framebuffer[base + 2] = *pixel;
+                self.framebuffer.raw_framebuffer[base] = *pixel ^ is_cursor;
+                self.framebuffer.raw_framebuffer[base + 1] = *pixel ^ is_cursor;
+                self.framebuffer.raw_framebuffer[base + 2] = *pixel ^ is_cursor;
             }
         }
     }
@@ -123,6 +125,7 @@ impl Console {
                 b'\x08' => {
                     self.col -= 1;
                     *self.char_mut(self.row, self.col) = b' ';
+                    self.update_character(self.row, self.col + 1);
                     self.update_character(self.row, self.col);
                 }
                 b'\n' => {
@@ -130,12 +133,13 @@ impl Console {
                 }
                 _ => {
                     *self.char_mut(self.row, self.col) = *byte;
-                    self.update_character(self.row, self.col);
 
                     if self.col == self.cols - 1 {
                         need_redraw |= self.newline();
                     } else {
                         self.col += 1;
+                        self.update_character(self.row, self.col - 1);
+                        self.update_character(self.row, self.col);
                     }
                 }
             }

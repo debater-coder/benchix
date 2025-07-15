@@ -5,7 +5,7 @@ use x86_64::{
     PhysAddr, VirtAddr,
 };
 
-use crate::{memory::PhysicalMemoryManager, LAPIC_START_VIRT, PMM};
+use crate::{LAPIC_START_VIRT, PMM};
 
 #[allow(dead_code)]
 pub const LAPIC_ID_OFFSET: u64 = 0x20;

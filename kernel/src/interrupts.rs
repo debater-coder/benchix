@@ -1,7 +1,21 @@
+/// # Handles IDT
+/// Even if a device uses less than 16 IRQs we still reserve 16 to keep things aligned nicely (and for prioritisation)
+///
+/// Interrupts 00-1F are reserved for exceptions
+/// Interrupts 20-2F are spurious interrupts from the legacy PIC
+/// Interrupts 30-3F are Local APIC LVT interrupts (CMCI, Timer, Thermal Monitor, Performance Counter, LINT0, LINT1 and
+///     Error) respectively
+/// Interrupt 40-4F are ISA IRQs with the interrupt number corresponding with the IRQ (eg. 0 is PIC, 1 is PS/2 Keyboard etc.)
+/// Interrupt 50-5F are PCI interrupts (not yet implemented)
+///
+/// Interrupt FF is spurious interrupt
 use lazy_static::lazy_static;
-use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
+use x86_64::{
+    instructions::port::Port,
+    structures::idt::{InterruptDescriptorTable, InterruptStackFrame},
+};
 
-use crate::{lapic::lapic_end_of_interrupt, scheduler};
+use crate::{apic::lapic::lapic_end_of_interrupt, filesystem::devfs::Devfs, scheduler};
 
 lazy_static! {
     static ref IDT: InterruptDescriptorTable = {
@@ -68,7 +82,11 @@ extern "x86-interrupt" fn lapic_timer(_interrupt_stack_frame: InterruptStackFram
 }
 
 extern "x86-interrupt" fn keyboard(_interrupt_stack_frame: InterruptStackFrame) {
-    unimplemented!()
+    let mut ps2_port = Port::<u8>::new(0x60);
+
+    Devfs::push_scancode(unsafe { ps2_port.read() });
+
+    unsafe { lapic_end_of_interrupt() }
 }
 
 pub(super) mod exception_handlers {

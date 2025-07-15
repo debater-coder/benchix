@@ -1,7 +1,7 @@
 [package]
 name = "kernel"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
 bootloader_api = "0.11.7"
@@ -10,6 +10,7 @@ x86_64 = "0.15.1"
 linked_list_allocator = "0.10.5"
 bitflags = "2.9.0"
 acpi = "5.2.0"
+pc-keyboard = "0.8.0"
 
 [dependencies.lazy_static]
 version = "1.0"
@@ -22,3 +23,8 @@ default-features = false
 [dependencies.noto-sans-mono-bitmap]
 version = "0.3.0"
 features = ["size_32"]
+
+[dependencies.crossbeam-queue]
+version = "0.3.12"
+default-features = false
+features = ["alloc"]

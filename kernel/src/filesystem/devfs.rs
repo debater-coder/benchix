@@ -1,8 +1,26 @@
-use alloc::{borrow::ToOwned, sync::Arc, vec};
+use alloc::{
+    borrow::ToOwned,
+    string::{String, ToString},
+    sync::Arc,
+    vec,
+};
+use conquer_once::spin::OnceCell;
+use crossbeam_queue::ArrayQueue;
+use pc_keyboard::{
+    DecodedKey, EventDecoder, HandleControl, ScancodeSet, ScancodeSet1, layouts::Us104Key,
+};
 use spin::Mutex;
 use x86_64::instructions::interrupts::without_interrupts;
 
-use crate::console::Console;
+use crate::{
+    CPUS,
+    console::Console,
+    scheduler::{self, Thread},
+};
+
+pub static SCANCODE_QUEUE: OnceCell<ArrayQueue<u8>> = OnceCell::uninit();
+
+pub static WAITING_THREAD: Mutex<Option<Arc<Mutex<Thread>>>> = Mutex::new(None);
 
 use super::vfs::{DirectoryEntry, FileType, Filesystem, FilesystemError, Inode};
 
@@ -10,10 +28,16 @@ pub struct Devfs {
     console: Mutex<Console>,
     root: Arc<Inode>,
     console_inode: Arc<Inode>,
+    pending_input: Mutex<String>,
+    scancode_set: Mutex<ScancodeSet1>,
+    event_decoder: Mutex<EventDecoder<Us104Key>>,
 }
 
 impl Devfs {
-    pub fn new(console: Console, dev: u32) -> Self {
+    pub fn init(console: Console, dev: u32) -> Self {
+        SCANCODE_QUEUE
+            .try_init_once(|| ArrayQueue::new(100))
+            .expect("Devfs::init() can only be called once.");
         Devfs {
             console: Mutex::new(console),
             root: Arc::new(Inode {
@@ -34,6 +58,23 @@ impl Devfs {
                 minor: Some(1),
                 inner: None,
             }),
+            pending_input: Mutex::new("".to_owned()),
+            scancode_set: Mutex::new(ScancodeSet1::new()),
+            event_decoder: Mutex::new(EventDecoder::new(
+                Us104Key,
+                HandleControl::MapLettersToUnicode,
+            )),
+        }
+    }
+
+    pub fn push_scancode(scancode: u8) {
+        if let Some(queue) = SCANCODE_QUEUE.get() {
+            queue.force_push(scancode); // So that older scancodes are discarded
+        }
+
+        // Wake up sleeping thread
+        if let Some(thread) = WAITING_THREAD.lock().clone() {
+            scheduler::enqueue(thread);
         }
     }
 }
@@ -68,7 +109,59 @@ impl Filesystem for Devfs {
         buffer: &mut [u8],
     ) -> Result<usize, super::vfs::FilesystemError> {
         if let (Some(1), Some(1)) = (inode.major, inode.minor) {
-            without_interrupts(|| Ok(self.console.lock().read(buffer)))
+            while {
+                while self.pending_input.lock().len() < buffer.len()
+                    && let Some(scancode) = SCANCODE_QUEUE.get().unwrap().pop()
+                {
+                    let key_event = self.scancode_set.lock().advance_state(scancode).unwrap();
+
+                    let decoded_key = if let Some(event) = key_event {
+                        self.event_decoder.lock().process_keyevent(event)
+                    } else {
+                        None
+                    };
+
+                    match decoded_key {
+                        Some(DecodedKey::Unicode(key)) => {
+                            let key = key.to_string();
+                            let key = key.as_str();
+                            self.console.lock().write(key.as_bytes());
+                            *self.pending_input.lock() += key;
+                        }
+                        _ => (),
+                    }
+                }
+                let input = self.pending_input.lock();
+                let last = input.bytes().last();
+                input.len() < buffer.len() && last != Some(b'\n') && last != Some(4)
+            } {
+                *WAITING_THREAD.lock() = Some(
+                    CPUS.get()
+                        .unwrap()
+                        .get_cpu()
+                        .current_thread
+                        .as_ref()
+                        .unwrap()
+                        .clone(),
+                );
+
+                scheduler::yield_execution();
+            }
+
+            let mut lock = self.pending_input.lock();
+
+            // Exclude EOF
+            if lock.bytes().last() == Some(4) {
+                *lock = lock[..lock.bytes().len() - 1].to_owned();
+            }
+
+            let result = lock[..buffer.len().min(lock.len())].as_bytes();
+            buffer[..result.len()].copy_from_slice(result);
+            let len = result.len();
+
+            *lock = lock[len..].to_owned();
+
+            Ok(len)
         } else {
             Err(FilesystemError::NotFound)
         }
