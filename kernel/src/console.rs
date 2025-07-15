@@ -59,18 +59,21 @@ impl Console {
         unimplemented!()
     }
 
-    fn newline(&mut self) {
+    fn newline(&mut self) -> bool {
+        let mut need_redraw = false;
         if self.row >= (self.rows - 1) {
             self.offset = (self.offset + self.cols) % (self.rows * self.cols); // Scroll down
                                                                                // Clear last row
             for x in 0..self.cols {
                 *self.char_mut(self.rows - 1, x) = b' ';
             }
-            self.full_redraw();
+            need_redraw = true;
         } else {
             self.row += 1;
         }
         self.col = 0;
+
+        need_redraw
     }
 
     fn full_redraw(&mut self) {
@@ -113,6 +116,8 @@ impl Console {
     }
 
     pub fn write(&mut self, buf: &[u8]) -> usize {
+        let mut need_redraw = false;
+
         for byte in buf {
             match byte {
                 b'\x08' => {
@@ -121,35 +126,34 @@ impl Console {
                     self.update_character(self.row, self.col);
                 }
                 b'\n' => {
-                    self.newline();
+                    need_redraw |= self.newline();
                 }
                 _ => {
                     *self.char_mut(self.row, self.col) = *byte;
                     self.update_character(self.row, self.col);
 
                     if self.col == self.cols - 1 {
-                        self.newline()
+                        need_redraw |= self.newline();
                     } else {
                         self.col += 1;
                     }
                 }
             }
         }
-
+        if need_redraw {
+            self.full_redraw();
+        }
         buf.len()
-    }
-}
-
-impl fmt::Write for Console {
-    fn write_str(&mut self, s: &str) -> fmt::Result {
-        self.write(s.as_bytes());
-        Ok(())
     }
 }
 
 #[macro_export]
 macro_rules! early_print {
-    ($console:expr, $($arg:tt)*) => (<Console as core::fmt::Write>::write_fmt($console, format_args!($($arg)*)).unwrap(););
+    ($console:expr, $($arg:tt)*) => {
+        let mut string: alloc::string::String = alloc::string::String::new();
+        let _ = <alloc::string::String as core::fmt::Write>::write_fmt(&mut string, format_args!($($arg)*));
+        $console.write(string.as_bytes());
+    };
 }
 
 #[macro_export]

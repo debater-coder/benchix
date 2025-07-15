@@ -4,6 +4,7 @@
 #![no_main]
 extern crate alloc;
 
+use acpi::{AcpiTables, PlatformInfo};
 use alloc::boxed::Box;
 use conquer_once::spin::OnceCell;
 use cpu::{Cpus, PerCpu};
@@ -19,6 +20,7 @@ use x86_64::VirtAddr;
 
 #[macro_use]
 mod console;
+mod acpi_handler;
 mod cpu;
 mod filesystem;
 mod interrupts;
@@ -85,7 +87,8 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
         .into_option()
         .expect("Expected recursive index");
 
-    let (mut mapper, mut pmm) = unsafe { memory::init(physical_offset, &boot_info.memory_regions) };
+    let (mut mapper, pmm) = unsafe { memory::init(physical_offset, &boot_info.memory_regions) };
+    PMM.get_or_init(|| Mutex::new(pmm));
 
     CPUS.init_once(|| Cpus::new(unsafe { PerCpu::init_cpu() }));
     unsafe {
@@ -95,11 +98,26 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     let mut console = Console::new(framebuffer);
     early_log!(&mut console, "Console initialised.");
 
+    early_log!(&mut console, "Parsing ACPI tables...");
+    let acpi_tables = unsafe {
+        AcpiTables::from_rsdp(
+            acpi_handler::Handler {
+                phys_offset: mapper.phys_offset(),
+            },
+            boot_info.rsdp_addr.into_option().unwrap() as usize,
+        )
+    }
+    .unwrap();
+
+    let platform_info = PlatformInfo::new(&acpi_tables).unwrap();
+    early_log!(&mut console, "Parsed ACPI tables: {:#?}", platform_info);
+
     early_log!(&mut console, "Initialising APIC timer...");
     let mut apic_base_msr = Msr::new(0x1b);
     unsafe { apic_base_msr.write(apic_base_msr.read() | (1 << 11)) };
-    let mut lapic = unsafe { Lapic::new(&mut mapper, &mut pmm, 0xff) };
+    let mut lapic = unsafe { Lapic::new(&mut mapper, 0xff) };
     lapic.configure_timer(0x31, 1_000_000, lapic::TimerDivideConfig::DivideBy16);
+
     early_log!(&mut console, "APIC timer initialised.");
     early_log!(&mut console, "Ramdisk size: {}", boot_info.ramdisk_len);
 
@@ -120,8 +138,6 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     kernel_log!("Initialising scheduler");
     scheduler::init();
     kernel_log!("Scheduler initialised.");
-
-    PMM.get_or_init(|| Mutex::new(pmm));
 
     kernel_log!("Creating init process...");
     let binary: &[u8] = unsafe {

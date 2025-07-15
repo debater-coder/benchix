@@ -5,7 +5,7 @@ use x86_64::{
     PhysAddr, VirtAddr,
 };
 
-use crate::{memory::PhysicalMemoryManager, LAPIC_START_VIRT};
+use crate::{memory::PhysicalMemoryManager, LAPIC_START_VIRT, PMM};
 
 #[allow(dead_code)]
 pub const LAPIC_ID_OFFSET: u64 = 0x20;
@@ -48,7 +48,6 @@ impl Lapic {
     /// Can only be called once
     pub unsafe fn new(
         mapper: &mut OffsetPageTable<'static>,
-        frame_allocator: &mut PhysicalMemoryManager,
         spurious_interrupt_vector: u8,
     ) -> Self {
         let virt_addr = VirtAddr::new(LAPIC_START_VIRT as u64);
@@ -59,7 +58,7 @@ impl Lapic {
                     Page::containing_address(virt_addr) as Page<Size4KiB>,
                     PhysFrame::containing_address(PhysAddr::new(LAPIC_BASE_PHYSICAL_ADDRESS)),
                     PageTableFlags::PRESENT | PageTableFlags::WRITABLE | PageTableFlags::NO_CACHE,
-                    frame_allocator,
+                    &mut *PMM.get().unwrap().lock(),
                 )
                 .unwrap()
                 .flush();
