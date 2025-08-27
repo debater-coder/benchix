@@ -4,6 +4,7 @@ use alloc::borrow::ToOwned;
 use alloc::boxed::Box;
 use alloc::sync::{Arc, Weak};
 use spin::Mutex;
+use x86_64::VirtAddr;
 use x86_64::instructions::interrupts::enable_and_hlt;
 use x86_64::instructions::segmentation::Segment;
 use x86_64::instructions::segmentation::{CS, DS, ES, FS, GS, SS};
@@ -13,7 +14,6 @@ use x86_64::registers::model_specific::{LStar, SFMask, Star};
 use x86_64::registers::rflags::RFlags;
 use x86_64::structures::gdt::{Descriptor, GlobalDescriptorTable};
 use x86_64::structures::tss::TaskStateSegment;
-use x86_64::VirtAddr;
 
 use crate::scheduler::Thread;
 use crate::user::syscalls::handle_syscall;
@@ -78,17 +78,19 @@ impl PerCpu {
 
         self.gdt.load();
 
-        CS::set_reg(code_selector);
-        load_tss(tss_selector);
+        unsafe {
+            CS::set_reg(code_selector);
+            load_tss(tss_selector);
 
-        DS::set_reg(data_selector);
-        ES::set_reg(data_selector);
-        FS::set_reg(data_selector);
-        GS::set_reg(data_selector);
-        SS::set_reg(data_selector);
+            DS::set_reg(data_selector);
+            ES::set_reg(data_selector);
+            FS::set_reg(data_selector);
+            GS::set_reg(data_selector);
+            SS::set_reg(data_selector);
 
-        // Prepare for usermode
-        Efer::write(Efer::read() | EferFlags::SYSTEM_CALL_EXTENSIONS);
+            // Prepare for usermode
+            Efer::write(Efer::read() | EferFlags::SYSTEM_CALL_EXTENSIONS);
+        }
         Star::write(
             user_code_selector,
             user_data_selector,

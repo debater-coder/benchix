@@ -1,5 +1,4 @@
-#![feature(naked_functions)]
-#![feature(abi_x86_interrupt, new_zeroed_alloc, allocator_api, let_chains)]
+#![feature(abi_x86_interrupt, new_zeroed_alloc, allocator_api)]
 #![no_std]
 #![no_main]
 extern crate alloc;

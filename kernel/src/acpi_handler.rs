@@ -15,13 +15,15 @@ impl AcpiHandler for Handler {
         size: usize,
     ) -> acpi::PhysicalMapping<Self, T> {
         // Doesn't actually map anything, just uses the physical offset
-        PhysicalMapping::new(
-            physical_address,
-            NonNull::new((self.phys_offset + physical_address as u64).as_mut_ptr()).unwrap(),
-            size,
-            size,
-            self.clone(),
-        )
+        unsafe {
+            PhysicalMapping::new(
+                physical_address,
+                NonNull::new((self.phys_offset + physical_address as u64).as_mut_ptr()).unwrap(),
+                size,
+                size,
+                self.clone(),
+            )
+        }
     }
 
     fn unmap_physical_region<T>(_region: &acpi::PhysicalMapping<Self, T>) {}

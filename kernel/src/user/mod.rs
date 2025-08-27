@@ -10,12 +10,12 @@ use spin::{Mutex, RwLock};
 use x86_64::registers::control::{Cr3, Cr3Flags};
 use x86_64::structures::paging::PhysFrame;
 use x86_64::{
-    structures::paging::{FrameAllocator, Mapper, OffsetPageTable, Page, PageTableFlags, Size4KiB},
     VirtAddr,
+    structures::paging::{FrameAllocator, Mapper, OffsetPageTable, Page, PageTableFlags, Size4KiB},
 };
 
-use crate::scheduler::Thread;
 use crate::PMM;
+use crate::scheduler::Thread;
 use crate::{debug_println, filesystem::vfs::Inode, kernel_log};
 
 #[allow(dead_code)]
@@ -27,18 +27,20 @@ static NEXT_PID: AtomicU32 = AtomicU32::new(1);
 
 unsafe fn allocate_user_page(mapper: &mut OffsetPageTable, page: Page, flags: PageTableFlags) {
     let mut pmm = PMM.get().unwrap().lock();
-    mapper
-        .map_to(
-            page,
-            pmm.allocate_frame().expect("Could not allocate frame"),
-            PageTableFlags::PRESENT
-                | PageTableFlags::WRITABLE
-                | PageTableFlags::USER_ACCESSIBLE
-                | flags,
-            &mut *pmm,
-        )
-        .unwrap()
-        .flush();
+    unsafe {
+        mapper
+            .map_to(
+                page,
+                pmm.allocate_frame().expect("Could not allocate frame"),
+                PageTableFlags::PRESENT
+                    | PageTableFlags::WRITABLE
+                    | PageTableFlags::USER_ACCESSIBLE
+                    | flags,
+                &mut *pmm,
+            )
+            .unwrap()
+            .flush()
+    };
 }
 
 pub struct UserProcess {
@@ -315,7 +317,7 @@ impl UserProcess {
 /// can't take parameters:
 /// - rbp stores userspace entry point
 /// - rbx stores userspace stack pointer
-#[naked]
+#[unsafe(naked)]
 unsafe extern "sysv64" fn enter_userspace() {
     naked_asm!(
         // We must keep the userspace stack in rbx, since the kstack

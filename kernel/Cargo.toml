@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-bootloader_api = "0.11.7"
+bootloader_api = "0.11.11"
 spin = "0.9.8"
 x86_64 = "0.15.1"
 linked_list_allocator = "0.10.5"

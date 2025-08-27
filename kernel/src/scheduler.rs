@@ -13,9 +13,9 @@ use alloc::{
 };
 use conquer_once::spin::OnceCell;
 use spin::Mutex;
-use x86_64::{instructions::interrupts, VirtAddr};
+use x86_64::{VirtAddr, instructions::interrupts};
 
-use crate::{user::UserProcess, CPUS};
+use crate::{CPUS, user::UserProcess};
 
 static READY: OnceCell<Mutex<VecDeque<Arc<Mutex<Thread>>>>> = OnceCell::uninit();
 static NEXT_TID: AtomicU32 = AtomicU32::new(0);
@@ -103,7 +103,7 @@ pub fn enqueue(thread: Arc<Mutex<Thread>>) {
 }
 
 /// Taken from redox os, with some modifications
-#[naked]
+#[unsafe(naked)]
 unsafe extern "sysv64" fn switch_to(_prev: &mut Context, _next: &Context) {
     // prev = rdi, next = rsi
     // The next context is a read-only clone, to save us from having to deal with its lock
@@ -167,15 +167,17 @@ unsafe extern "sysv64" fn switch_to(_prev: &mut Context, _next: &Context) {
 unsafe extern "sysv64" fn switch_finish_hook() {
     let cpu = CPUS.get().unwrap().get_cpu();
     if let Some(thread) = cpu.current_thread.as_mut() {
-        thread.force_unlock();
+        unsafe { thread.force_unlock() };
     }
 
     cpu.current_thread = cpu.next_thread.clone();
     cpu.next_thread = None;
 
-    cpu.set_ist(VirtAddr::new(
-        cpu.current_thread.clone().unwrap().lock().context.rsp,
-    ));
+    unsafe {
+        cpu.set_ist(VirtAddr::new(
+            cpu.current_thread.clone().unwrap().lock().context.rsp,
+        ))
+    };
 }
 
 /// Yields to scheduler, but keep current thread in queue.

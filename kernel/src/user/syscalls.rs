@@ -2,21 +2,21 @@ use core::{arch::naked_asm, ffi::CStr, slice};
 
 use alloc::sync::Arc;
 use spin::{Mutex, RwLock};
-use x86_64::{registers::model_specific::FsBase, VirtAddr};
+use x86_64::{VirtAddr, registers::model_specific::FsBase};
 
 use crate::{
+    CPUS, VFS,
     filesystem::vfs::Filesystem,
     kernel_log, scheduler,
     user::{
-        constants::{EBADF, EFAULT, ENOSYS, O_ACCMODE, O_RDONLY, O_RDWR, O_WRONLY},
         FileDescriptor,
+        constants::{EBADF, EFAULT, ENOSYS, O_ACCMODE, O_RDONLY, O_RDWR, O_WRONLY},
     },
-    CPUS, VFS,
 };
 
 use super::{
-    constants::{ARCH_SET_FS, EINVAL, ENOTTY},
     UserProcess,
+    constants::{ARCH_SET_FS, EINVAL, ENOTTY},
 };
 
 extern "sysv64" fn get_kernel_stack() -> u64 {
@@ -211,7 +211,7 @@ pub extern "sysv64" fn handle_syscall_inner(
     }
 }
 
-#[naked]
+#[unsafe(naked)]
 pub unsafe extern "sysv64" fn handle_syscall() {
     // save registers required by sysretq
     naked_asm!(

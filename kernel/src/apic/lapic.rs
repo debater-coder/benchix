@@ -1,8 +1,8 @@
 use core::ptr::slice_from_raw_parts_mut;
 
 use x86_64::{
-    structures::paging::{Mapper, OffsetPageTable, Page, PageTableFlags, PhysFrame, Size4KiB},
     PhysAddr, VirtAddr,
+    structures::paging::{Mapper, OffsetPageTable, Page, PageTableFlags, PhysFrame, Size4KiB},
 };
 
 use crate::{LAPIC_START_VIRT, PMM};
@@ -20,7 +20,9 @@ pub const EOI_OFFSET: u64 = 0xB0;
 pub const LAPIC_BASE_PHYSICAL_ADDRESS: u64 = 0xFEE0_0000;
 
 pub unsafe fn lapic_end_of_interrupt() {
-    (VirtAddr::new(LAPIC_START_VIRT as u64 + EOI_OFFSET).as_mut_ptr() as *mut u32).write(0);
+    unsafe {
+        (VirtAddr::new(LAPIC_START_VIRT as u64 + EOI_OFFSET).as_mut_ptr() as *mut u32).write(0)
+    };
 }
 
 #[allow(dead_code)]
