@@ -1,6 +1,6 @@
-use core::{arch::naked_asm, ffi::CStr, mem::transmute, slice};
+use core::{arch::naked_asm, ffi::CStr, slice};
 
-use alloc::{borrow::ToOwned, sync::Arc, sync::Weak, vec};
+use alloc::{borrow::ToOwned, sync::Arc, vec};
 use spin::{Mutex, RwLock};
 use x86_64::{VirtAddr, registers::model_specific::FsBase};
 
@@ -8,7 +8,7 @@ use crate::{
     CPUS, VFS,
     filesystem::vfs::Filesystem,
     kernel_log,
-    scheduler::{self, Thread, enqueue, yield_execution},
+    scheduler::{self, enqueue, yield_execution},
     user::{
         FileDescriptor,
         constants::{EBADF, EFAULT, ENOSYS, O_ACCMODE, O_RDONLY, O_RDWR, O_WRONLY},

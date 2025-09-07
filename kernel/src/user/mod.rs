@@ -7,10 +7,8 @@ use alloc::ffi::CString;
 use alloc::sync::Weak;
 use alloc::{sync::Arc, vec::Vec};
 use spin::{Mutex, RwLock};
-use x86_64::instructions::tlb::flush_all;
 use x86_64::registers::control::{Cr3, Cr3Flags};
 use x86_64::structures::paging::PhysFrame;
-use x86_64::structures::paging::mapper::UnmapError;
 use x86_64::{
     VirtAddr,
     structures::paging::{FrameAllocator, Mapper, OffsetPageTable, Page, PageTableFlags, Size4KiB},
@@ -18,7 +16,7 @@ use x86_64::{
 
 use crate::PMM;
 use crate::scheduler::Thread;
-use crate::{debug_println, filesystem::vfs::Inode, kernel_log};
+use crate::{debug_println, filesystem::vfs::Inode};
 
 #[allow(dead_code)]
 pub mod constants;
@@ -30,14 +28,6 @@ static NEXT_PID: AtomicU32 = AtomicU32::new(1);
 unsafe fn allocate_user_page(mapper: &mut OffsetPageTable, page: Page, flags: PageTableFlags) {
     let mut pmm = PMM.get().unwrap().lock();
 
-    match mapper.unmap(page) {
-        Ok((frame, flush)) => {
-            debug_println!("unmapping frame {:?}", frame);
-            flush.flush();
-        }
-        Err(UnmapError::PageNotMapped) => {}
-        Err(e) => panic!("{:?}", e),
-    }
     unsafe {
         mapper
             .map_to(
@@ -145,6 +135,12 @@ impl UserProcess {
             return Err(LoadingError::InvalidHeader);
         }
 
+        // Clear previous userspace mappings (the entire lower half of the kernel)
+        // TODO: dealloc previously allocated frames
+        for entry in self.mapper.level_4_table_mut().iter_mut().take(256) {
+            entry.set_unused();
+        }
+
         // Read program headers
         let headers: Vec<&ProgramHeaderEntry> = (0..header_num)
             .map(|i| header_start + header_size * i)
@@ -211,15 +207,6 @@ impl UserProcess {
 
                 // Create mappings
                 unsafe {
-                    match self.mapper.unmap(page) {
-                        Ok((frame, flush)) => {
-                            debug_println!("unmapping frame {:?}", frame);
-                            flush.flush();
-                        }
-                        Err(UnmapError::PageNotMapped) => {}
-                        Err(e) => panic!("{:?}", e),
-                    }
-
                     self.mapper
                         .map_to(
                             page,
