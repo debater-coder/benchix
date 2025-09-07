@@ -2,5 +2,5 @@
 
 int main(int argc, char **argv) {
   puts("placeholder for LS\n");
-  return 0;
+  return 67;
 }

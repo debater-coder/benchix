@@ -110,7 +110,7 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     .unwrap();
 
     let platform_info = PlatformInfo::new(&acpi_tables).unwrap();
-    early_log!(&mut console, "Parsed ACPI tables: {:#?}", platform_info);
+    debug_println!("Parsed ACPI tables: {:#?}", platform_info);
 
     early_log!(&mut console, "Initialising APIC devices...");
 

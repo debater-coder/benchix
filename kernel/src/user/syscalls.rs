@@ -102,8 +102,10 @@ fn write(fd: u32, buf: *mut u8, count: usize) -> usize {
         return -EFAULT as usize;
     }
 
+    debug_println!("waiting on process lock");
     let process = get_current_process();
     let process = process.lock();
+    debug_println!("got process lock");
     let fd = process.files.get(&fd);
 
     let mut fd = match fd {
@@ -210,7 +212,6 @@ fn execve(filename: *const i8, argv: *const *const i8, _envp: *const *const i8) 
     debug_println!("execve({:?}, {:?})", filename, args);
 
     let process = get_current_process();
-    let mut process = process.lock();
 
     let vfs = VFS.get().unwrap();
 
@@ -219,23 +220,27 @@ fn execve(filename: *const i8, argv: *const *const i8, _envp: *const *const i8) 
     let mut binary = vec![0; inode.size];
     vfs.read(inode, 0, binary.as_mut_slice()).unwrap();
 
-    match process.execve(
+    let execve_result = process.lock().execve(
         binary.as_slice(),
         args.iter().map(|s| &**s).collect(),
         vec![],
-    ) {
+    );
+    match execve_result {
         Ok(_) => {
-            loop {}
-            // Prevent context switch from saving current state (and overriding execve's work)
-            CPUS.get().unwrap().get_cpu().current_thread = None;
+            {
+                let process = process.lock(); // In a block to ensure mutex guard is dropped before scheduler
 
-            // Set entry point of process to switch to the userspace entry point (bypassing normal syscall machinery)
-            process.thread.lock().set_func(enter_userspace);
+                // Prevent context switch from saving current state (and overriding execve's work)
+                CPUS.get().unwrap().get_cpu().current_thread = None;
 
-            debug_println!("{:?}", process.thread);
+                // Set entry point of process to switch to the userspace entry point (bypassing normal syscall machinery)
+                process.thread.lock().set_func(enter_userspace);
 
-            // We need to requeue the thread manually since yield_and_continue() relies on requeuing the current thread
-            enqueue(process.thread.clone());
+                debug_println!("{:?}", process.thread);
+
+                // We need to requeue the thread manually since yield_and_continue() relies on requeuing the current thread
+                enqueue(process.thread.clone());
+            }
 
             yield_execution();
 
@@ -252,7 +257,7 @@ pub extern "sysv64" fn handle_syscall_inner(
     arg2: u64,
     arg3: u64,
 ) -> u64 {
-    match syscall_number {
+    let retval = match syscall_number {
         0 => read(arg0 as u32, arg1 as usize as *mut _, arg2 as usize) as u64,
         1 => write(arg0 as u32, arg1 as usize as *mut _, arg2 as usize) as u64,
         2 => open(arg0 as usize as *const _, arg1 as u32),
@@ -277,7 +282,9 @@ pub extern "sysv64" fn handle_syscall_inner(
             );
             -ENOSYS as u64
         }
-    }
+    };
+    debug_println!("returned {:?}", retval);
+    retval
 }
 
 #[unsafe(naked)]

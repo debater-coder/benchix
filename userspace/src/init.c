@@ -6,10 +6,10 @@ int main(int argc, char *argv[]) {
   open("/dev/console", O_WRONLY); // fd 1 -- stdout
   open("/dev/console", O_WRONLY); // fd 2 -- stderr
 
-  puts("execve to /init/init\n");
+  puts("execve to /init/ls\n");
 
-  char *args[] = {"/init/init", "test1", "test2"};
-  execve("/init/init", args, NULL);
+  char *args[] = {"/init/ls", "test1", "test2"};
+  execve("/init/ls", args, NULL);
 
   return 42;
 }

@@ -180,6 +180,7 @@ unsafe impl<'a> FrameAllocator<Size4KiB> for PhysicalMemoryManager<'a> {
 
 impl<'a> FrameDeallocator<Size4KiB> for PhysicalMemoryManager<'a> {
     unsafe fn deallocate_frame(&mut self, frame: PhysFrame<Size4KiB>) {
+        debug_println!("frame dealloced {:?}", frame);
         self.clear_frame(frame);
     }
 }

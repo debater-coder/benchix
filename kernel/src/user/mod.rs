@@ -30,7 +30,14 @@ static NEXT_PID: AtomicU32 = AtomicU32::new(1);
 unsafe fn allocate_user_page(mapper: &mut OffsetPageTable, page: Page, flags: PageTableFlags) {
     let mut pmm = PMM.get().unwrap().lock();
 
-    let _ = mapper.unmap(page);
+    match mapper.unmap(page) {
+        Ok((frame, flush)) => {
+            debug_println!("unmapping frame {:?}", frame);
+            flush.flush();
+        }
+        Err(UnmapError::PageNotMapped) => {}
+        Err(e) => panic!("{:?}", e),
+    }
     unsafe {
         mapper
             .map_to(
@@ -127,7 +134,7 @@ impl UserProcess {
         let header_start = u64::from_ne_bytes(binary[0x20..0x28].try_into().unwrap()) as usize;
         let header_size = u16::from_ne_bytes(binary[0x36..0x38].try_into().unwrap()) as usize;
         let header_num = u16::from_ne_bytes(binary[0x38..0x3A].try_into().unwrap()) as usize;
-        kernel_log!(
+        debug_println!(
             "Headers: start: {:x} size: {:x} num: {}",
             header_start,
             header_size,
@@ -157,7 +164,7 @@ impl UserProcess {
                 continue;
             }
 
-            kernel_log!(
+            debug_println!(
                 "type: {:?} flags: {:?} other: {:x?}",
                 segment_type,
                 segment_flags,
@@ -191,12 +198,9 @@ impl UserProcess {
                     as usize;
                 let src = &contents[start_index..(start_index + 0x1000).min(contents.len())];
 
-                let frame_offset = VirtAddr::from_ptr(src.as_ptr()).as_u64() % 0x1000;
-
                 let dst = unsafe {
                     slice::from_raw_parts_mut(
-                        (self.mapper.phys_offset() + frame.start_address().as_u64() + frame_offset)
-                            .as_mut_ptr(),
+                        (self.mapper.phys_offset() + frame.start_address().as_u64()).as_mut_ptr(),
                         src.len(),
                     )
                 };
@@ -208,7 +212,10 @@ impl UserProcess {
                 // Create mappings
                 unsafe {
                     match self.mapper.unmap(page) {
-                        Ok(_) => {}
+                        Ok((frame, flush)) => {
+                            debug_println!("unmapping frame {:?}", frame);
+                            flush.flush();
+                        }
                         Err(UnmapError::PageNotMapped) => {}
                         Err(e) => panic!("{:?}", e),
                     }
@@ -237,20 +244,10 @@ impl UserProcess {
                         )
                         .expect("Failed to create mappings")
                         .flush();
-
-                    let result = slice::from_raw_parts(
-                        (page.start_address() + frame_offset).as_ptr(),
-                        src.len(),
-                    );
-                    debug_println!("result at {:x?} {:?}", page.start_address(), result);
-                    assert_eq!(src, result);
                 };
             }
-            let result: &[u8] =
-                unsafe { slice::from_raw_parts(VirtAddr::new(0x400000).as_ptr(), 504) };
-            debug_println!("result {:?}", result); // Giving zeroes: FIXME! somethigns eating the pages
         }
-        kernel_log!("Mappings have been created.");
+        debug_println!("Mappings have been created.");
 
         // https://gitlab.com/x86-psABIs/x86-64-ABI/-/jobs/9388606854/artifacts/raw/x86-64-ABI/abi.pdf
         // See figure 3.9:
@@ -334,7 +331,7 @@ impl UserProcess {
         // Userspace stack pointer
         self.thread.lock().context.rbx = stack_top.as_u64();
 
-        kernel_log!("Userspace entry point {:x}", entry);
+        debug_println!("Userspace entry point {:x}", entry);
 
         Ok(())
     }
