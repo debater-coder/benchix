@@ -101,12 +101,23 @@ impl UserProcess {
         process
     }
 
+    /// See the POSIX execve system call for information on how it is used
+    /// Currently this only supports static ELF loading -- dynamic executables or
+    /// shebang scripts are not supported.
+    ///
     pub fn execve(
         &mut self,
         binary: &[u8],
         args: Vec<&str>,
         _env: Vec<&str>, // TODO
     ) -> Result<(), LoadingError> {
+        // Clear previous user page mappings
+        for entry in self.mapper.level_4_table_mut().iter_mut() {
+            if entry.flags().contains(PageTableFlags::USER_ACCESSIBLE) {
+                entry.set_unused();
+            }
+        }
+
         // Validate ELF header
         if binary[0x0..0x4] != *b"\x7fELF" // Magic
             || binary[0x4] != 2 // 64-bit
