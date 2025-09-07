@@ -13,7 +13,7 @@ use x86_64::{PhysAddr, VirtAddr};
 
 #[global_allocator]
 static ALLOCATOR: LockedHeap = LockedHeap::empty();
-pub const INITIAL_HEAP_SIZE: u64 = 200 * 1024;
+pub const INITIAL_HEAP_SIZE: u64 = 1024 * 1024;
 
 /// # Safety
 /// Can only be called once. Physical offset must be correct

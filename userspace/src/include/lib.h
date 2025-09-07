@@ -42,6 +42,12 @@ uint64_t write(int fd, void *buf, uint64_t count) {
                    "ret;");
 }
 
+uint64_t execve(const char *pathname, char *const argv[], char *const envp[]) {
+  asm __volatile__("movq $59, %rax;"
+                   "syscall;"
+                   "ret;");
+}
+
 uint64_t strlen(char *str) {
   char *curr = str;
   while (*curr != '\0') {

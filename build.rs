@@ -5,14 +5,14 @@ fn main() {
     let root_dir = PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap());
 
     // Compile init
-    let init_path = root_dir.join("init");
+    let init_path = root_dir.join("userspace");
     println!("cargo::rerun-if-changed={}", init_path.display());
 
     let mut make_cmd = std::process::Command::new("make");
     make_cmd.current_dir(&init_path);
     make_cmd.spawn().unwrap().wait().unwrap();
 
-    let init_out = init_path.clone().join("init");
+    let init_out = init_path.clone().join("build/init");
 
     // Compile kernel
     let kernel = PathBuf::from(std::env::var_os("CARGO_BIN_FILE_KERNEL_kernel").unwrap());
