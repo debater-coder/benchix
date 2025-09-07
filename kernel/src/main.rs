@@ -110,7 +110,7 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     .unwrap();
 
     let platform_info = PlatformInfo::new(&acpi_tables).unwrap();
-    early_log!(&mut console, "Parsed ACPI tables: {:#?}", platform_info);
+    debug_println!("Parsed ACPI tables: {:#?}", platform_info);
 
     early_log!(&mut console, "Initialising APIC devices...");
 
@@ -119,13 +119,16 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     early_log!(&mut console, "Ramdisk size: {}", boot_info.ramdisk_len);
 
     early_log!(&mut console, "Initialising VFS...");
+    let binary: &[u8] = unsafe {
+        slice::from_raw_parts(
+            VirtAddr::new(boot_info.ramdisk_addr.into_option().unwrap()).as_ptr(),
+            boot_info.ramdisk_len as usize,
+        )
+    };
     VFS.init_once(|| {
         let mut vfs = VirtualFileSystem::new();
         let devfs = Devfs::init(console, 1);
-        let initrd = Initrd::from_files(
-            2,
-            vec![("hello_world.txt", "Hello from initrd!".as_bytes())],
-        );
+        let initrd = Initrd::from_files(2, vec![("ls", include_bytes!("ls")), ("init", binary)]);
         vfs.mount(1, Box::new(devfs), "dev", 0).unwrap();
         vfs.mount(2, Box::new(initrd), "init", 0).unwrap();
         vfs
@@ -137,12 +140,6 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     kernel_log!("Scheduler initialised.");
 
     kernel_log!("Creating init process...");
-    let binary: &[u8] = unsafe {
-        slice::from_raw_parts(
-            VirtAddr::new(boot_info.ramdisk_addr.into_option().unwrap()).as_ptr(),
-            boot_info.ramdisk_len as usize,
-        )
-    };
 
     let init_process = UserProcess::new(mapper);
     kernel_log!("Init process created");

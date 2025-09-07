@@ -7,8 +7,10 @@ use alloc::ffi::CString;
 use alloc::sync::Weak;
 use alloc::{sync::Arc, vec::Vec};
 use spin::{Mutex, RwLock};
+use x86_64::instructions::tlb::flush_all;
 use x86_64::registers::control::{Cr3, Cr3Flags};
 use x86_64::structures::paging::PhysFrame;
+use x86_64::structures::paging::mapper::UnmapError;
 use x86_64::{
     VirtAddr,
     structures::paging::{FrameAllocator, Mapper, OffsetPageTable, Page, PageTableFlags, Size4KiB},
@@ -27,6 +29,15 @@ static NEXT_PID: AtomicU32 = AtomicU32::new(1);
 
 unsafe fn allocate_user_page(mapper: &mut OffsetPageTable, page: Page, flags: PageTableFlags) {
     let mut pmm = PMM.get().unwrap().lock();
+
+    match mapper.unmap(page) {
+        Ok((frame, flush)) => {
+            debug_println!("unmapping frame {:?}", frame);
+            flush.flush();
+        }
+        Err(UnmapError::PageNotMapped) => {}
+        Err(e) => panic!("{:?}", e),
+    }
     unsafe {
         mapper
             .map_to(
@@ -111,13 +122,6 @@ impl UserProcess {
         args: Vec<&str>,
         _env: Vec<&str>, // TODO
     ) -> Result<(), LoadingError> {
-        // Clear previous user page mappings
-        for entry in self.mapper.level_4_table_mut().iter_mut() {
-            if entry.flags().contains(PageTableFlags::USER_ACCESSIBLE) {
-                entry.set_unused();
-            }
-        }
-
         // Validate ELF header
         if binary[0x0..0x4] != *b"\x7fELF" // Magic
             || binary[0x4] != 2 // 64-bit
@@ -130,7 +134,7 @@ impl UserProcess {
         let header_start = u64::from_ne_bytes(binary[0x20..0x28].try_into().unwrap()) as usize;
         let header_size = u16::from_ne_bytes(binary[0x36..0x38].try_into().unwrap()) as usize;
         let header_num = u16::from_ne_bytes(binary[0x38..0x3A].try_into().unwrap()) as usize;
-        kernel_log!(
+        debug_println!(
             "Headers: start: {:x} size: {:x} num: {}",
             header_start,
             header_size,
@@ -160,7 +164,7 @@ impl UserProcess {
                 continue;
             }
 
-            kernel_log!(
+            debug_println!(
                 "type: {:?} flags: {:?} other: {:x?}",
                 segment_type,
                 segment_flags,
@@ -194,20 +198,28 @@ impl UserProcess {
                     as usize;
                 let src = &contents[start_index..(start_index + 0x1000).min(contents.len())];
 
-                let frame_offset = VirtAddr::from_ptr(src.as_ptr()).as_u64() % 0x1000;
-
                 let dst = unsafe {
                     slice::from_raw_parts_mut(
-                        (self.mapper.phys_offset() + frame.start_address().as_u64() + frame_offset)
-                            .as_mut_ptr(),
+                        (self.mapper.phys_offset() + frame.start_address().as_u64()).as_mut_ptr(),
                         src.len(),
                     )
                 };
 
                 dst.copy_from_slice(src);
 
+                debug_println!("mapping {:?} to {:?}, len: {:?}", page, frame, src.len());
+
                 // Create mappings
                 unsafe {
+                    match self.mapper.unmap(page) {
+                        Ok((frame, flush)) => {
+                            debug_println!("unmapping frame {:?}", frame);
+                            flush.flush();
+                        }
+                        Err(UnmapError::PageNotMapped) => {}
+                        Err(e) => panic!("{:?}", e),
+                    }
+
                     self.mapper
                         .map_to(
                             page,
@@ -235,7 +247,7 @@ impl UserProcess {
                 };
             }
         }
-        kernel_log!("Mappings have been created.");
+        debug_println!("Mappings have been created.");
 
         // https://gitlab.com/x86-psABIs/x86-64-ABI/-/jobs/9388606854/artifacts/raw/x86-64-ABI/abi.pdf
         // See figure 3.9:
@@ -315,10 +327,11 @@ impl UserProcess {
         // Userspace entry point
         let entry = u64::from_ne_bytes(binary[0x18..0x20].try_into().unwrap());
         self.thread.lock().context.rbp = entry;
+
         // Userspace stack pointer
         self.thread.lock().context.rbx = stack_top.as_u64();
 
-        kernel_log!("Userspace entry point {:x}", entry);
+        debug_println!("Userspace entry point {:x}", entry);
 
         Ok(())
     }

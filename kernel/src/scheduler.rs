@@ -80,11 +80,15 @@ impl Thread {
             name,
         };
 
-        // Put the return address on the top of the stack
-        *thread.kstack.last_mut().unwrap() = func as u64;
-
-        thread.context.rsp = thread.kstack.last_mut().unwrap() as *const u64 as u64;
+        thread.set_func(func);
         thread
+    }
+
+    pub fn set_func(&mut self, func: unsafe extern "sysv64" fn()) {
+        // Put the return address on the top of the stack
+        *self.kstack.last_mut().unwrap() = func as u64;
+
+        self.context.rsp = self.kstack.last_mut().unwrap() as *const u64 as u64;
     }
 }
 
