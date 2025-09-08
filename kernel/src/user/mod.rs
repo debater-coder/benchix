@@ -5,10 +5,11 @@ use core::sync::atomic::{AtomicU32, Ordering};
 use alloc::collections::btree_map::BTreeMap;
 use alloc::ffi::CString;
 use alloc::sync::Weak;
+use alloc::vec;
 use alloc::{sync::Arc, vec::Vec};
 use spin::{Mutex, RwLock};
 use x86_64::registers::control::{Cr3, Cr3Flags};
-use x86_64::structures::paging::PhysFrame;
+use x86_64::structures::paging::{FrameDeallocator, PhysFrame};
 use x86_64::{
     VirtAddr,
     structures::paging::{FrameAllocator, Mapper, OffsetPageTable, Page, PageTableFlags, Size4KiB},
@@ -25,14 +26,19 @@ pub mod syscalls;
 
 static NEXT_PID: AtomicU32 = AtomicU32::new(1);
 
-unsafe fn allocate_user_page(mapper: &mut OffsetPageTable, page: Page, flags: PageTableFlags) {
+unsafe fn allocate_user_page(
+    mapper: &mut OffsetPageTable,
+    page: Page,
+    flags: PageTableFlags,
+) -> PhysFrame {
     let mut pmm = PMM.get().unwrap().lock();
+    let frame = pmm.allocate_frame().expect("Could not allocate frame");
 
     unsafe {
         mapper
             .map_to(
                 page,
-                pmm.allocate_frame().expect("Could not allocate frame"),
+                frame,
                 PageTableFlags::PRESENT
                     | PageTableFlags::WRITABLE
                     | PageTableFlags::USER_ACCESSIBLE
@@ -42,6 +48,7 @@ unsafe fn allocate_user_page(mapper: &mut OffsetPageTable, page: Page, flags: Pa
             .unwrap()
             .flush()
     };
+    frame
 }
 
 pub struct UserProcess {
@@ -53,6 +60,8 @@ pub struct UserProcess {
     pub mapper: OffsetPageTable<'static>,
     pub thread: Arc<Mutex<Thread>>,
     pub pid: u32,
+    /// Allocated frames
+    frames: Vec<PhysFrame>,
 }
 
 pub struct FileDescriptor {
@@ -95,6 +104,7 @@ impl UserProcess {
             mapper,
             thread: thread.clone(),
             pid: NEXT_PID.fetch_add(1, Ordering::Relaxed),
+            frames: vec![],
         }));
 
         thread.lock().process = Arc::downgrade(&process);
@@ -137,9 +147,15 @@ impl UserProcess {
         }
 
         // Clear previous userspace mappings (the entire lower half of the kernel)
-        // TODO: dealloc previously allocated frames
         for entry in self.mapper.level_4_table_mut().iter_mut().take(256) {
             entry.set_unused();
+        }
+
+        // Dealloc previous frames
+        for frame in self.frames.drain(..) {
+            unsafe {
+                PMM.get().unwrap().lock().deallocate_frame(frame);
+            }
         }
 
         // Read program headers
@@ -207,6 +223,8 @@ impl UserProcess {
                 debug_println!("mapping {:?} to {:?}, len: {:?}", page, frame, src.len());
 
                 // Create mappings
+                // This looks like it leaks memory since map_to() can map frames when creating page tables.
+                // However there will only ever be a finite amount of page tables, so this is fine.
                 unsafe {
                     self.mapper
                         .map_to(
@@ -233,6 +251,8 @@ impl UserProcess {
                         .expect("Failed to create mappings")
                         .flush();
                 };
+
+                self.frames.push(frame);
             }
         }
         debug_println!("Mappings have been created.");
@@ -245,12 +265,12 @@ impl UserProcess {
 
         // Alloc page for info
         unsafe {
-            allocate_user_page(
+            self.frames.push(allocate_user_page(
                 &mut self.mapper,
                 Page::<Size4KiB>::from_start_address(stack_top)
                     .expect("stack top to be page-aligned"),
                 PageTableFlags::NO_EXECUTE,
-            );
+            ));
         }
 
         let argc = args.len() as u64;
@@ -308,7 +328,11 @@ impl UserProcess {
 
         unsafe {
             for page in stack_range {
-                allocate_user_page(&mut self.mapper, page, PageTableFlags::NO_EXECUTE);
+                self.frames.push(allocate_user_page(
+                    &mut self.mapper,
+                    page,
+                    PageTableFlags::NO_EXECUTE,
+                ));
             }
         }
 
