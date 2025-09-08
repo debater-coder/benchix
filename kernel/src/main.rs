@@ -130,7 +130,7 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
         let devfs = Devfs::init(console, 1);
         let ramdisk = unsafe { Ramdisk::from_tar(2, &binary) };
         vfs.mount(1, Box::new(devfs), "dev", 0).unwrap();
-        vfs.mount(2, Box::new(ramdisk), "init", 0).unwrap();
+        vfs.mount(2, Box::new(ramdisk), "bin", 0).unwrap();
         vfs
     });
     kernel_log!("VFS initialised");
@@ -145,7 +145,7 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     kernel_log!("Init process created");
 
     let vfs = VFS.get().unwrap();
-    let inode = vfs.traverse_fs(vfs.root.clone(), "/init/init").unwrap();
+    let inode = vfs.traverse_fs(vfs.root.clone(), "/bin/init").unwrap();
 
     let mut executable = vec![0; inode.size];
 

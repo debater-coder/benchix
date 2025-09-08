@@ -5,10 +5,8 @@ int main(int argc, char *argv[]) {
   open("/dev/console", O_WRONLY); // fd 1 -- stdout
   open("/dev/console", O_WRONLY); // fd 2 -- stderr
 
-  puts("execve to /init/ls\n");
+  char *args[] = {"/bin/sh", 0};
+  execve("/bin/sh", args, 0);
 
-  char *args[] = {"/init/ls", "test1", "test2"};
-  execve("/init/ls", args, 0);
-
-  return 42;
+  return -1;
 }

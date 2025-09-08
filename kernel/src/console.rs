@@ -2,7 +2,7 @@ use alloc::vec;
 use alloc::vec::Vec;
 use bootloader_api::info::{FrameBuffer, FrameBufferInfo};
 use core::fmt;
-use noto_sans_mono_bitmap::{get_raster, get_raster_width, FontWeight, RasterHeight};
+use noto_sans_mono_bitmap::{FontWeight, RasterHeight, get_raster, get_raster_width};
 use x86_64::instructions::port::Port;
 
 const SIZE: RasterHeight = RasterHeight::Size32;
@@ -56,10 +56,12 @@ impl Console {
     }
 
     fn newline(&mut self) -> bool {
+        let old_row = self.row;
+        let old_col = self.col;
         let mut need_redraw = false;
         if self.row >= (self.rows - 1) {
             self.offset = (self.offset + self.cols) % (self.rows * self.cols); // Scroll down
-                                                                               // Clear last row
+            // Clear last row
             for x in 0..self.cols {
                 *self.char_mut(self.rows - 1, x) = b' ';
             }
@@ -68,6 +70,8 @@ impl Console {
             self.row += 1;
         }
         self.col = 0;
+
+        self.update_character(old_row, old_col);
 
         need_redraw
     }
