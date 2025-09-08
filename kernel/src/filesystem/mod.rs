@@ -1,3 +1,3 @@
 pub mod devfs;
-pub mod initrd;
+pub mod ramdisk;
 pub mod vfs;

@@ -1,6 +1,7 @@
 INCLUDE := $(wildcard src/include/*.h)
 
-all: build/init build/ls
+build/ramdisk.tar: build/init build/ls
+	tar -cf ramdisk.tar -C build/ .
 
 build/init: src/init.c $(INCLUDE)
 	gcc -Wall -nostdlib -fno-stack-protector src/init.c -o build/init

@@ -119,6 +119,7 @@ impl UserProcess {
             || binary[0x10] != 2
         // Executable file
         {
+            debug_println!("{:?}", &binary[0x0..=0x10]);
             return Err(LoadingError::InvalidHeader);
         }
         let header_start = u64::from_ne_bytes(binary[0x20..0x28].try_into().unwrap()) as usize;

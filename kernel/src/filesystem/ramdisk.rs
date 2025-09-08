@@ -1,14 +1,66 @@
-use alloc::{boxed::Box, collections::btree_map::BTreeMap, string::ToString, sync::Arc, vec::Vec};
+use core::ffi::CStr;
+
+use alloc::{
+    boxed::Box, collections::btree_map::BTreeMap, string::ToString, sync::Arc, vec, vec::Vec,
+};
 
 use super::vfs::{DirectoryEntry, FileType, Filesystem, FilesystemError, Inode};
 
-// Only supports one level of directories
-pub struct Initrd {
+/// https://wiki.osdev.org/Tar
+#[derive(Debug)]
+#[repr(C)]
+struct TarHeader {
+    filename: [u8; 100],
+    mode: [u8; 8],
+    uid: [u8; 8],
+    gid: [u8; 8],
+    size: [u8; 12],
+    mtime: [u8; 12],
+    chksum: [u8; 8],
+    typeflag: [u8; 1],
+}
+
+pub struct Ramdisk {
     pub dev: u32,
     inodes: BTreeMap<u32, Arc<Inode>>,
 }
 
-impl Initrd {
+impl Ramdisk {
+    pub unsafe fn from_tar(dev: u32, archive: &'static [u8]) -> Self {
+        let mut files = vec![];
+
+        let mut offset = 0;
+
+        while archive[offset] != 0 {
+            let header = unsafe {
+                &*(archive[offset..(offset + size_of::<TarHeader>())].as_ptr() as *const TarHeader)
+            };
+
+            let size = usize::from_str_radix(
+                CStr::from_bytes_until_nul(&header.size)
+                    .unwrap()
+                    .to_str()
+                    .unwrap(),
+                8,
+            )
+            .unwrap();
+
+            let filename = CStr::from_bytes_until_nul(&header.filename)
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .trim_start_matches("./");
+
+            if size > 0 {
+                let contents = &archive[(offset + 512)..(offset + size + 512)];
+                files.push((filename, contents));
+            }
+
+            offset += size.div_ceil(512) * 512 + 512;
+        }
+
+        Ramdisk::from_files(dev, files)
+    }
     pub fn from_files(dev: u32, files: Vec<(&str, &'static [u8])>) -> Self {
         let mut map: BTreeMap<u32, Arc<Inode>> = BTreeMap::new();
 
@@ -50,11 +102,11 @@ impl Initrd {
             );
         }
 
-        Initrd { dev, inodes: map }
+        Ramdisk { dev, inodes: map }
     }
 }
 
-impl Filesystem for Initrd {
+impl Filesystem for Ramdisk {
     fn open(&self, _inode: Arc<Inode>) -> Result<(), super::vfs::FilesystemError> {
         Ok(())
     }

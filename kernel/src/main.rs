@@ -8,8 +8,8 @@ use alloc::boxed::Box;
 use conquer_once::spin::OnceCell;
 use cpu::{Cpus, PerCpu};
 use filesystem::devfs::Devfs;
-use filesystem::initrd::Initrd;
-use filesystem::vfs::VirtualFileSystem;
+use filesystem::ramdisk::Ramdisk;
+use filesystem::vfs::{Filesystem, VirtualFileSystem};
 use memory::PhysicalMemoryManager;
 use spin::mutex::Mutex;
 use user::UserProcess;
@@ -128,9 +128,9 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     VFS.init_once(|| {
         let mut vfs = VirtualFileSystem::new();
         let devfs = Devfs::init(console, 1);
-        let initrd = Initrd::from_files(2, vec![("ls", include_bytes!("ls")), ("init", binary)]);
+        let ramdisk = unsafe { Ramdisk::from_tar(2, &binary) };
         vfs.mount(1, Box::new(devfs), "dev", 0).unwrap();
-        vfs.mount(2, Box::new(initrd), "init", 0).unwrap();
+        vfs.mount(2, Box::new(ramdisk), "init", 0).unwrap();
         vfs
     });
     kernel_log!("VFS initialised");
@@ -144,9 +144,20 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     let init_process = UserProcess::new(mapper);
     kernel_log!("Init process created");
 
+    let vfs = VFS.get().unwrap();
+    let inode = vfs.traverse_fs(vfs.root.clone(), "/init/init").unwrap();
+
+    let mut executable = vec![0; inode.size];
+
+    vfs.read(inode, 0, executable.as_mut_slice()).unwrap();
+
     init_process
         .lock()
-        .execve(binary, vec!["/init/init", "arg2", "arg3"], vec![])
+        .execve(
+            executable.as_slice(),
+            vec!["/init/init", "arg2", "arg3"],
+            vec![],
+        )
         .unwrap();
 
     kernel_log!("execve completed.");

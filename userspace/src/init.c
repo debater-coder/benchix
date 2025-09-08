@@ -1,5 +1,4 @@
 #include "include/lib.h"
-#include "stddef.h"
 
 int main(int argc, char *argv[]) {
   open("/dev/console", O_RDONLY); // fd 0 -- stdin
@@ -9,7 +8,7 @@ int main(int argc, char *argv[]) {
   puts("execve to /init/ls\n");
 
   char *args[] = {"/init/ls", "test1", "test2"};
-  execve("/init/ls", args, NULL);
+  execve("/init/ls", args, 0);
 
   return 42;
 }
