@@ -20,6 +20,7 @@ use crate::{
 
 pub static SCANCODE_QUEUE: OnceCell<ArrayQueue<u8>> = OnceCell::uninit();
 
+/// DANGER LOCK: DISABLE INTERRUPTS BEFORE USE!!!
 pub static WAITING_THREAD: Mutex<Option<Arc<Mutex<Thread>>>> = Mutex::new(None);
 
 use super::vfs::{DirectoryEntry, FileType, Filesystem, FilesystemError, Inode};
@@ -73,7 +74,7 @@ impl Devfs {
         }
 
         // Wake up sleeping thread
-        if let Some(thread) = WAITING_THREAD.lock().clone() {
+        if let Some(thread) = without_interrupts(|| WAITING_THREAD.lock().clone()) {
             scheduler::enqueue(thread);
         }
     }
@@ -135,15 +136,17 @@ impl Filesystem for Devfs {
                 let last = input.bytes().last();
                 input.len() < buffer.len() && last != Some(b'\n') && last != Some(4)
             } {
-                *WAITING_THREAD.lock() = Some(
-                    CPUS.get()
-                        .unwrap()
-                        .get_cpu()
-                        .current_thread
-                        .as_ref()
-                        .unwrap()
-                        .clone(),
-                );
+                without_interrupts(|| {
+                    *WAITING_THREAD.lock() = Some(
+                        CPUS.get()
+                            .unwrap()
+                            .get_cpu()
+                            .current_thread
+                            .as_ref()
+                            .unwrap()
+                            .clone(),
+                    )
+                });
 
                 scheduler::yield_execution();
             }
