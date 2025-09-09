@@ -5,7 +5,11 @@ use core::{arch::naked_asm, ffi::CStr, slice};
 use alloc::sync::Arc;
 use execve::execve_inner;
 use spin::{Mutex, RwLock};
-use x86_64::{VirtAddr, registers::model_specific::FsBase};
+use x86_64::{
+    VirtAddr,
+    registers::model_specific::FsBase,
+    structures::paging::{Page, PageTableFlags, Size4KiB},
+};
 
 use crate::{
     CPUS, VFS,
@@ -14,7 +18,7 @@ use crate::{
     scheduler::{self},
     user::{
         FileDescriptor,
-        constants::{EBADF, EFAULT, ENOSYS, O_ACCMODE, O_RDONLY, O_RDWR, O_WRONLY},
+        constants::{EBADF, EFAULT, ENOMEM, ENOSYS, O_ACCMODE, O_RDONLY, O_RDWR, O_WRONLY},
     },
 };
 
@@ -193,6 +197,44 @@ fn execve(filename: *const i8, argv: *const *const i8, envp: *const *const i8) -
     }
 }
 
+fn brk(addr: u64) -> u64 {
+    let addr = VirtAddr::new(addr);
+    let process = get_current_process();
+    let mut process = process.lock();
+
+    if !check_addr(addr) || addr < process.brk_initial {
+        return -ENOMEM as u64;
+    }
+
+    if addr > process.brk {
+        for page in Page::range_inclusive(
+            Page::<Size4KiB>::containing_address(process.brk),
+            Page::containing_address(addr),
+        )
+        .skip(1)
+        // First page has already been mapped so skip that one
+        {
+            unsafe { process.allocate_user_page(page, PageTableFlags::NO_EXECUTE) };
+        }
+    }
+
+    if addr < process.brk {
+        for page in Page::range_inclusive(
+            Page::<Size4KiB>::containing_address(addr),
+            Page::containing_address(process.brk),
+        )
+        .skip(1)
+        // Don't unmap the current break
+        {
+            unsafe {
+                process.unmap_page(page);
+            }
+        }
+    }
+
+    process.brk.as_u64()
+}
+
 pub extern "sysv64" fn handle_syscall_inner(
     syscall_number: u64,
     arg0: u64,
@@ -205,6 +247,7 @@ pub extern "sysv64" fn handle_syscall_inner(
         1 => write(arg0 as u32, arg1 as usize as *mut _, arg2 as usize) as u64,
         2 => open(arg0 as usize as *const _, arg1 as u32),
         3 => close(arg0 as u32),
+        12 => brk(arg0),
         16 => -ENOTTY as u64, // ioctl
         158 => arch_prctl(arg0 as u32, arg1),
         231 => exit(arg0 as i32), // exit_group

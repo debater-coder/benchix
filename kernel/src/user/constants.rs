@@ -48,6 +48,12 @@ pub const O_RDWR: u32 = 0o00000002;
 pub const O_CREAT: u32 = 0o00000100;
 pub const O_ACCMODE: u32 = 0000000003; // AND this to get access mode
 
+// mman-common.h
+pub const PROT_READ: u32 = 0x1; /* page can be read */
+pub const PROT_WRITE: u32 = 0x2; /* page can be written */
+pub const PROT_EXEC: u32 = 0x4; /* page can be executed */
+pub const PROT_NONE: u32 = 0x0; /* page can not be accessed */
+
 // arch/x86/include/uapi/asm/prctl.h
 pub const ARCH_SET_GS: u32 = 0x1001;
 pub const ARCH_SET_FS: u32 = 0x1002;

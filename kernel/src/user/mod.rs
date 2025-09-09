@@ -8,7 +8,6 @@ use alloc::sync::Weak;
 use alloc::vec;
 use alloc::{sync::Arc, vec::Vec};
 use spin::{Mutex, RwLock};
-use x86_64::registers::control::{Cr3, Cr3Flags};
 use x86_64::structures::paging::{FrameDeallocator, PhysFrame};
 use x86_64::{
     VirtAddr,
@@ -26,42 +25,17 @@ pub mod syscalls;
 
 static NEXT_PID: AtomicU32 = AtomicU32::new(1);
 
-unsafe fn allocate_user_page(
-    mapper: &mut OffsetPageTable,
-    page: Page,
-    flags: PageTableFlags,
-) -> PhysFrame {
-    let mut pmm = PMM.get().unwrap().lock();
-    let frame = pmm.allocate_frame().expect("Could not allocate frame");
-
-    unsafe {
-        mapper
-            .map_to(
-                page,
-                frame,
-                PageTableFlags::PRESENT
-                    | PageTableFlags::WRITABLE
-                    | PageTableFlags::USER_ACCESSIBLE
-                    | flags,
-                &mut *pmm,
-            )
-            .unwrap()
-            .flush()
-    };
-    frame
-}
-
 pub struct UserProcess {
     /// Open file descriptors
     pub files: BTreeMap<u32, Arc<RwLock<FileDescriptor>>>, // So that file descriptors can be shared
     next_fd: u32, // TODO: be less naive (if you repeatedly open and close file descriptors you will run out)
-    #[allow(dead_code)]
-    cr3: (PhysFrame, Cr3Flags),
     pub mapper: OffsetPageTable<'static>,
     pub thread: Arc<Mutex<Thread>>,
     pub pid: u32,
     /// Allocated frames
     frames: Vec<PhysFrame>,
+    pub brk: VirtAddr,
+    pub brk_initial: VirtAddr,
 }
 
 pub struct FileDescriptor {
@@ -100,11 +74,12 @@ impl UserProcess {
         let process = Arc::new(Mutex::new(UserProcess {
             files: BTreeMap::new(),
             next_fd: 0,
-            cr3: Cr3::read(),
             mapper,
             thread: thread.clone(),
             pid: NEXT_PID.fetch_add(1, Ordering::Relaxed),
             frames: vec![],
+            brk: VirtAddr::new(0),
+            brk_initial: VirtAddr::new(0),
         }));
 
         thread.lock().process = Arc::downgrade(&process);
@@ -168,7 +143,7 @@ impl UserProcess {
             .collect();
 
         // Load program segments
-        for header in headers {
+        for header in &headers {
             let segment_type = header.segment_type as u32;
             let segment_flags = (header.segment_type >> 32) as u32;
 
@@ -257,6 +232,14 @@ impl UserProcess {
         }
         debug_println!("Mappings have been created.");
 
+        // Set the program break to the end of the highest segment
+        self.brk_initial = headers
+            .iter()
+            .map(|header| VirtAddr::new(header.virtual_address) + header.mem_size)
+            .max()
+            .unwrap_or(VirtAddr::new(0));
+        self.brk = self.brk_initial;
+
         // https://gitlab.com/x86-psABIs/x86-64-ABI/-/jobs/9388606854/artifacts/raw/x86-64-ABI/abi.pdf
         // See figure 3.9:
         // Note 7fff_ffff_0000..7fff_ffff_ffff forms the initial process stack
@@ -265,12 +248,11 @@ impl UserProcess {
 
         // Alloc page for info
         unsafe {
-            self.frames.push(allocate_user_page(
-                &mut self.mapper,
+            self.allocate_user_page(
                 Page::<Size4KiB>::from_start_address(stack_top)
                     .expect("stack top to be page-aligned"),
                 PageTableFlags::NO_EXECUTE,
-            ));
+            );
         }
 
         let argc = args.len() as u64;
@@ -328,11 +310,7 @@ impl UserProcess {
 
         unsafe {
             for page in stack_range {
-                self.frames.push(allocate_user_page(
-                    &mut self.mapper,
-                    page,
-                    PageTableFlags::NO_EXECUTE,
-                ));
+                self.allocate_user_page(page, PageTableFlags::NO_EXECUTE);
             }
         }
 
@@ -346,6 +324,44 @@ impl UserProcess {
         debug_println!("Userspace entry point {:x}", entry);
 
         Ok(())
+    }
+
+    /// Allocates a user accessible page to a new frame.
+    pub unsafe fn allocate_user_page(&mut self, page: Page, flags: PageTableFlags) {
+        let mut pmm = PMM.get().unwrap().lock();
+        let frame = pmm.allocate_frame().expect("Could not allocate frame");
+
+        unsafe {
+            self.mapper
+                .map_to(
+                    page,
+                    frame,
+                    PageTableFlags::PRESENT
+                        | PageTableFlags::WRITABLE
+                        | PageTableFlags::USER_ACCESSIBLE
+                        | flags,
+                    &mut *pmm,
+                )
+                .unwrap()
+                .flush()
+        };
+        self.frames.push(frame)
+    }
+
+    pub unsafe fn unmap_page(&mut self, page: Page) {
+        let mut pmm = PMM.get().unwrap().lock();
+
+        let (frame, flush) = self.mapper.unmap(page).unwrap();
+        flush.flush();
+
+        // We must remove the frame from the vectors to avoid a double free:
+        // This is what makes the next deallocation sound.
+        self.frames
+            .swap_remove(self.frames.iter().position(|f| *f == frame).unwrap());
+
+        unsafe {
+            pmm.deallocate_frame(frame);
+        }
     }
 }
 
