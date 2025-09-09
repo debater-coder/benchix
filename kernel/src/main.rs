@@ -1,4 +1,4 @@
-#![feature(abi_x86_interrupt, new_zeroed_alloc, allocator_api)]
+#![feature(abi_x86_interrupt, new_zeroed_alloc, allocator_api, never_type)]
 #![no_std]
 #![no_main]
 extern crate alloc;
