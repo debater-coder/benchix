@@ -129,8 +129,9 @@ impl Filesystem for Devfs {
                 }
                 let input = self.pending_input.lock();
                 let last = input.last();
-                input.len() < buffer.len() && last != Some(&b'\n') && last != Some(&4)
+                input.len() < buffer.len() && last != Some(&b'\n') && last != Some(&0)
             } {
+                debug_println!("in keyboard lock");
                 without_interrupts(|| {
                     *WAITING_THREAD.lock() = Some(
                         CPUS.get()
@@ -158,6 +159,8 @@ impl Filesystem for Devfs {
             let len = result.len();
 
             *lock = lock[len..].to_owned();
+
+            debug_print!("end of wait");
 
             Ok(len)
         } else {

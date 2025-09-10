@@ -17,6 +17,10 @@ pub(super) fn execve_inner(
     argv: *const *const i8,
     _envp: *const *const i8,
 ) -> Result<!, ExecveError> {
+    debug_println!("execve");
+    if filename.is_null() {
+        return Err(ExecveError);
+    }
     let filename = unsafe { CStr::from_ptr(filename) }.to_str().unwrap(); // TODO check filename not null
     if !check_buffer(filename.as_bytes()) {
         return Err(ExecveError);

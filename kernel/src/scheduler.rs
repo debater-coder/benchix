@@ -13,10 +13,14 @@ use alloc::{
 };
 use conquer_once::spin::OnceCell;
 use spin::Mutex;
-use x86_64::{VirtAddr, instructions::interrupts};
+use x86_64::{
+    VirtAddr,
+    instructions::interrupts::{self, without_interrupts},
+};
 
 use crate::{CPUS, user::UserProcess};
 
+/// DANGER LOCK: DISABLE INTERRUPTS BEFORE USE!!!
 static READY: OnceCell<Mutex<VecDeque<Arc<Mutex<Thread>>>>> = OnceCell::uninit();
 static NEXT_TID: AtomicU32 = AtomicU32::new(0);
 
@@ -99,11 +103,13 @@ pub fn init() {
 }
 
 pub fn enqueue(thread: Arc<Mutex<Thread>>) {
-    READY
-        .get()
-        .expect("scheduler::init should have been called")
-        .lock()
-        .push_back(thread);
+    without_interrupts(|| {
+        READY
+            .get()
+            .expect("scheduler::init should have been called")
+            .lock()
+            .push_back(thread);
+    })
 }
 
 /// Taken from redox os, with some modifications

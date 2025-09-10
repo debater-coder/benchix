@@ -61,11 +61,28 @@ uint64_t execve(const char *pathname, char *const argv[], char *const envp[]) {
 }
 
 uint64_t strlen(char *str) {
+  if (!str) {
+    return 0;
+  }
   char *curr = str;
   while (*curr != '\0') {
     curr++;
   }
   return curr - str;
+}
+
+bool streq(char *a, char *b) {
+  if (a == 0 || b == 0) {
+    return false;
+  }
+  while (*a != 0 && *b != 0) {
+    if (*a != *b) {
+      return false;
+    }
+    a += 1;
+    b += 1;
+  }
+  return true;
 }
 
 bool iserror(int64_t sysret_value) {
@@ -88,7 +105,7 @@ void *brk(void *addr) {
 void *sbrk(intptr_t increment) {
   void *curr_brk = brk(0);
 
-  brk(curr_brk + increment);
+  brk(curr_brk + (increment + 7) / 8 * 8);
 
   return curr_brk;
 }
@@ -101,6 +118,8 @@ void *malloc(uint64_t size) {
     if (curr->size >= size + sizeof(struct alloc_header)) {
       if (prev != 0) {
         prev->next = curr->next; // Remove from freelist
+      } else {
+          free_start = curr->next;
       }
       ((struct alloc_header *)curr)->magic = 0xdeadbeef;
       ((struct alloc_header *)curr)->size = size;
@@ -121,7 +140,6 @@ void *malloc(uint64_t size) {
 }
 
 void free(void *ptr) {
-    puts("free\n\n\n");
   if (ptr == 0) {
     return;
   }
@@ -182,13 +200,41 @@ char *getline(int fd) {
   return line;
 }
 
-char* concat(char* a, char* b) {
-    uint64_t lena = strlen(a);
-    uint64_t lenb = strlen(b);
-    char* result = malloc(lena + lenb);
+// This is a destructive operation
+char **split(char *str, char delim) {
+  uint64_t size = 0;
+  char **result;
 
-    memcpy(result, a, lena);
-    memcpy(result + lena, b, lenb);
+  while (*str != 0) {
+    while (*str == delim && *str != 0) {
+      *str = 0;
+      str += 1;
+    }
+    if (*str == 0)
+      return result;
 
-    return result;
+    // New non-delim token
+    result = realloc(result, sizeof(char *) * (++size));
+    result[size - 1] = str;
+
+    while (*str != delim && *str != 0) {
+      str += 1;
+    }
+  }
+  // null the end
+  result = realloc(result, sizeof(char *) * (++size));
+  result[size - 1] = 0;
+
+  return result;
+}
+
+char *concat(char *a, char *b) {
+  uint64_t lena = strlen(a);
+  uint64_t lenb = strlen(b);
+  char *result = malloc(lena + lenb);
+
+  memcpy(result, a, lena);
+  memcpy(result + lena, b, lenb);
+
+  return result;
 }
