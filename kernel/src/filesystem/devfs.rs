@@ -1,9 +1,4 @@
-use alloc::{
-    borrow::ToOwned,
-    string::{String, ToString},
-    sync::Arc,
-    vec,
-};
+use alloc::{borrow::ToOwned, string::ToString, sync::Arc, vec, vec::Vec};
 use conquer_once::spin::OnceCell;
 use crossbeam_queue::ArrayQueue;
 use pc_keyboard::{
@@ -29,7 +24,7 @@ pub struct Devfs {
     console: Mutex<Console>,
     root: Arc<Inode>,
     console_inode: Arc<Inode>,
-    pending_input: Mutex<String>,
+    pending_input: Mutex<Vec<u8>>,
     scancode_set: Mutex<ScancodeSet1>,
     event_decoder: Mutex<EventDecoder<Us104Key>>,
 }
@@ -59,7 +54,7 @@ impl Devfs {
                 minor: Some(1),
                 inner: None,
             }),
-            pending_input: Mutex::new("".to_owned()),
+            pending_input: Mutex::new(Vec::new()),
             scancode_set: Mutex::new(ScancodeSet1::new()),
             event_decoder: Mutex::new(EventDecoder::new(
                 Us104Key,
@@ -125,16 +120,16 @@ impl Filesystem for Devfs {
                     match decoded_key {
                         Some(DecodedKey::Unicode(key)) => {
                             let key = key.to_string();
-                            let key = key.as_str();
-                            self.console.lock().write(key.as_bytes());
-                            *self.pending_input.lock() += key;
+                            let key = key.as_str().as_bytes();
+                            self.console.lock().write(key);
+                            self.pending_input.lock().append(&mut Vec::from(key));
                         }
                         _ => (),
                     }
                 }
                 let input = self.pending_input.lock();
-                let last = input.bytes().last();
-                input.len() < buffer.len() && last != Some(b'\n') && last != Some(4)
+                let last = input.last();
+                input.len() < buffer.len() && last != Some(&b'\n') && last != Some(&4)
             } {
                 without_interrupts(|| {
                     *WAITING_THREAD.lock() = Some(
@@ -153,12 +148,12 @@ impl Filesystem for Devfs {
 
             let mut lock = self.pending_input.lock();
 
-            // Exclude EOF
-            if lock.bytes().last() == Some(4) {
-                *lock = lock[..lock.bytes().len() - 1].to_owned();
+            // Replace EOF with null terminator
+            if lock.last() == Some(&4) {
+                *lock.last_mut().unwrap() = 0;
             }
 
-            let result = lock[..buffer.len().min(lock.len())].as_bytes();
+            let result = &lock[..buffer.len().min(lock.len())];
             buffer[..result.len()].copy_from_slice(result);
             let len = result.len();
 
@@ -177,6 +172,7 @@ impl Filesystem for Devfs {
         buffer: &[u8],
     ) -> Result<usize, super::vfs::FilesystemError> {
         if let (Some(1), Some(1)) = (inode.major, inode.minor) {
+            debug_println!("{}", str::from_utf8(buffer).unwrap_or("0"));
             without_interrupts(|| Ok(self.console.lock().write(buffer)))
         } else {
             Err(FilesystemError::NotFound)

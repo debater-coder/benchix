@@ -198,12 +198,14 @@ fn execve(filename: *const i8, argv: *const *const i8, envp: *const *const i8) -
 }
 
 fn brk(addr: u64) -> u64 {
+    debug_println!("brk({})", addr);
+
     let addr = VirtAddr::new(addr);
     let process = get_current_process();
     let mut process = process.lock();
 
-    if !check_addr(addr) || addr < process.brk_initial {
-        return -ENOMEM as u64;
+    if !check_addr(addr) || addr < process.brk_initial || addr.is_null() {
+        return process.brk.as_u64();
     }
 
     if addr > process.brk {
@@ -231,6 +233,8 @@ fn brk(addr: u64) -> u64 {
             }
         }
     }
+
+    process.brk = addr;
 
     process.brk.as_u64()
 }

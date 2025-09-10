@@ -159,10 +159,13 @@ pub(super) mod exception_handlers {
     }
 
     pub(super) extern "x86-interrupt" fn general_protection_fault(
-        _interrupt_stack_frame: InterruptStackFrame,
+        interrupt_stack_frame: InterruptStackFrame,
         error_code: u64,
     ) {
-        panic!("[CPU Exception] General Protection Fault {:?}", error_code)
+        panic!(
+            "[CPU Exception] General Protection Fault {:?} {:?}",
+            error_code, interrupt_stack_frame
+        )
     }
 
     pub(super) extern "x86-interrupt" fn page_fault(
