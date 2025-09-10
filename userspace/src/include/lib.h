@@ -121,6 +121,7 @@ void *malloc(uint64_t size) {
 }
 
 void free(void *ptr) {
+    puts("free\n\n\n");
   if (ptr == 0) {
     return;
   }
@@ -153,12 +154,13 @@ void *realloc(void *ptr, uint64_t size) {
       puts("WARNING: non-malloc header passed to realloc()");
     } else {
       memcpy(alloc, ptr, header->size);
-      free(ptr);
     }
   }
 
   return alloc;
 }
+
+#define GETLINE_INCREMENT 100
 
 char *getline(int fd) {
   char *line = 0;
@@ -166,8 +168,8 @@ char *getline(int fd) {
 
   uint64_t len;
   do {
-    line = realloc(line, size + 10);
-    len = read(fd, line + size - 10, 10);
+    line = realloc(line, size + GETLINE_INCREMENT);
+    len = read(fd, line + size, GETLINE_INCREMENT);
 
     size += len;
 
@@ -178,4 +180,15 @@ char *getline(int fd) {
   }
 
   return line;
+}
+
+char* concat(char* a, char* b) {
+    uint64_t lena = strlen(a);
+    uint64_t lenb = strlen(b);
+    char* result = malloc(lena + lenb);
+
+    memcpy(result, a, lena);
+    memcpy(result + lena, b, lenb);
+
+    return result;
 }
