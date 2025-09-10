@@ -18,7 +18,7 @@ use crate::{
     scheduler::{self},
     user::{
         FileDescriptor,
-        constants::{EBADF, EFAULT, ENOMEM, ENOSYS, O_ACCMODE, O_RDONLY, O_RDWR, O_WRONLY},
+        constants::{EBADF, EFAULT, ENOSYS, O_ACCMODE, O_RDONLY, O_RDWR, O_WRONLY},
     },
 };
 
