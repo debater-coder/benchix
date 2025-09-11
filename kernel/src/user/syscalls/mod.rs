@@ -23,7 +23,7 @@ use crate::{
 };
 
 use super::{
-    UserProcess,
+    ProcessTable, UserProcess,
     constants::{ARCH_SET_FS, EINVAL, ENOTTY},
 };
 
@@ -43,16 +43,18 @@ extern "sysv64" fn get_kernel_stack() -> u64 {
 /// # Panics
 /// If there is no current process or the CPU struct isn't initialised
 fn get_current_process() -> Arc<Mutex<UserProcess>> {
-    CPUS.get()
-        .unwrap()
-        .get_cpu()
-        .current_thread
-        .as_mut()
-        .unwrap()
-        .lock()
-        .process
-        .upgrade()
-        .expect("No current process")
+    ProcessTable::get_by_pid(
+        CPUS.get()
+            .unwrap()
+            .get_cpu()
+            .current_thread
+            .as_mut()
+            .unwrap()
+            .lock()
+            .process
+            .expect("No current process"),
+    )
+    .expect("No current process")
 }
 
 /// Returns true if an address is in userspace

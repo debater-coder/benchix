@@ -4,12 +4,7 @@ use core::{
 };
 
 use alloc::{
-    borrow::ToOwned,
-    collections::vec_deque::VecDeque,
-    string::String,
-    sync::{Arc, Weak},
-    vec,
-    vec::Vec,
+    borrow::ToOwned, collections::vec_deque::VecDeque, string::String, sync::Arc, vec, vec::Vec,
 };
 use conquer_once::spin::OnceCell;
 use spin::Mutex;
@@ -18,7 +13,7 @@ use x86_64::{
     instructions::interrupts::{self, without_interrupts},
 };
 
-use crate::{CPUS, user::UserProcess};
+use crate::CPUS;
 
 /// DANGER LOCK: DISABLE INTERRUPTS BEFORE USE!!!
 static READY: OnceCell<Mutex<VecDeque<Arc<Mutex<Thread>>>>> = OnceCell::uninit();
@@ -53,8 +48,8 @@ pub struct Thread {
     pub context: Context,
     /// Kernel stack
     pub kstack: Vec<u64>,
-    /// Parent process
-    pub process: Weak<Mutex<UserProcess>>,
+    /// Parent process (PID reference)
+    pub process: Option<u32>,
     /// Thread id
     pub tid: u32,
     pub name: Option<String>,
@@ -73,7 +68,7 @@ impl core::fmt::Debug for Thread {
 impl Thread {
     pub fn from_func(
         func: unsafe extern "sysv64" fn(),
-        process: Weak<Mutex<UserProcess>>,
+        process: Option<u32>,
         name: Option<String>,
     ) -> Thread {
         let mut thread = Thread {

@@ -12,7 +12,7 @@ use filesystem::ramdisk::Ramdisk;
 use filesystem::vfs::{Filesystem, VirtualFileSystem};
 use memory::PhysicalMemoryManager;
 use spin::mutex::Mutex;
-use user::UserProcess;
+use user::{ProcessTable, UserProcess};
 use x86_64::VirtAddr;
 
 #[macro_use]
@@ -140,8 +140,9 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     kernel_log!("Scheduler initialised.");
 
     kernel_log!("Creating init process...");
+    ProcessTable::init();
 
-    let init_process = UserProcess::new(mapper);
+    let init_pid = UserProcess::create(mapper);
     kernel_log!("Init process created");
 
     let vfs = VFS.get().unwrap();
@@ -151,18 +152,22 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
 
     vfs.read(inode, 0, executable.as_mut_slice()).unwrap();
 
-    init_process
-        .lock()
-        .execve(
-            executable.as_slice(),
-            vec!["/init/init", "arg2", "arg3"],
-            vec![],
-        )
-        .unwrap();
+    {
+        let process = ProcessTable::get_by_pid(init_pid).unwrap().clone();
 
-    kernel_log!("execve completed.");
+        process
+            .lock()
+            .execve(
+                executable.as_slice(),
+                vec!["/init/init", "arg2", "arg3"],
+                vec![],
+            )
+            .unwrap();
 
-    scheduler::enqueue(init_process.lock().thread.clone());
+        kernel_log!("execve completed.");
+
+        scheduler::enqueue(process.lock().thread.clone());
+    }
 
     kernel_log!("Yielding to scheduler");
     loop {

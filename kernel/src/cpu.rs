@@ -2,7 +2,7 @@ use core::cell::UnsafeCell;
 
 use alloc::borrow::ToOwned;
 use alloc::boxed::Box;
-use alloc::sync::{Arc, Weak};
+use alloc::sync::Arc;
 use spin::Mutex;
 use x86_64::VirtAddr;
 use x86_64::instructions::interrupts::enable_and_hlt;
@@ -58,7 +58,7 @@ impl PerCpu {
             next_thread: None,
             idle_thread: Arc::new(Mutex::new(Thread::from_func(
                 idle,
-                Weak::new(),
+                None,
                 Some("idle".to_owned()),
             ))),
         }

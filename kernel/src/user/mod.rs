@@ -4,10 +4,11 @@ use core::sync::atomic::{AtomicU32, Ordering};
 
 use alloc::collections::btree_map::BTreeMap;
 use alloc::ffi::CString;
-use alloc::sync::Weak;
 use alloc::vec;
 use alloc::{sync::Arc, vec::Vec};
-use spin::{Mutex, RwLock};
+use conquer_once::spin::OnceCell;
+use spin::RwLock;
+use spin::mutex::Mutex;
 use x86_64::structures::paging::{FrameDeallocator, PhysFrame};
 use x86_64::{
     VirtAddr,
@@ -22,21 +23,6 @@ use crate::{debug_println, filesystem::vfs::Inode};
 pub mod constants;
 
 pub mod syscalls;
-
-static NEXT_PID: AtomicU32 = AtomicU32::new(1);
-
-pub struct UserProcess {
-    /// Open file descriptors
-    pub files: BTreeMap<u32, Arc<RwLock<FileDescriptor>>>, // So that file descriptors can be shared
-    next_fd: u32, // TODO: be less naive (if you repeatedly open and close file descriptors you will run out)
-    pub mapper: OffsetPageTable<'static>,
-    pub thread: Arc<Mutex<Thread>>,
-    pub pid: u32,
-    /// Allocated frames
-    frames: Vec<PhysFrame>,
-    pub brk: VirtAddr,
-    pub brk_initial: VirtAddr,
-}
 
 pub struct FileDescriptor {
     pub inode: Arc<Inode>,
@@ -60,18 +46,71 @@ struct ProgramHeaderEntry {
     mem_size: u64,
     align: u64,
 }
+static NEXT_PID: AtomicU32 = AtomicU32::new(1);
+static PROCESS_TABLE: OnceCell<ProcessTable> = OnceCell::uninit();
+
+pub struct ProcessTable {
+    /// Maps PID to user process
+    processes: RwLock<BTreeMap<u32, Arc<Mutex<UserProcess>>>>,
+}
+
+impl ProcessTable {
+    pub fn init() {
+        PROCESS_TABLE.init_once(|| ProcessTable {
+            processes: RwLock::new(BTreeMap::new()),
+        });
+    }
+
+    /// Gets a process by its PID
+    /// # Panics
+    /// Panics if ProcessTable::init() has not been called.
+    ///
+    /// Most references to processes should be by PID. Holding this Arc<> for too long
+    /// will delay process destruction, so drop this as soon as possible.
+    pub fn get_by_pid(pid: u32) -> Option<Arc<Mutex<UserProcess>>> {
+        PROCESS_TABLE
+            .get()
+            .expect("Expected ProcessTable::init() to have been called.")
+            .processes
+            .read()
+            .get(&pid)
+            .cloned()
+    }
+
+    /// Used internally when forking or creating a process to add to process table.
+    /// # Panics
+    /// Panics if ProcessTable::init() has not been called.
+    fn add_process(process: UserProcess) {
+        PROCESS_TABLE
+            .get()
+            .expect("Expected ProcessTable::init() to have been called.")
+            .processes
+            .write()
+            .insert(process.pid, Arc::new(Mutex::new(process)));
+    }
+}
+
+pub struct UserProcess {
+    /// Open file descriptors
+    pub files: BTreeMap<u32, Arc<RwLock<FileDescriptor>>>, // So that file descriptors can be shared
+    next_fd: u32, // TODO: be less naive (if you repeatedly open and close file descriptors you will run out)
+    pub mapper: OffsetPageTable<'static>,
+    pub thread: Arc<Mutex<Thread>>,
+    pub pid: u32,
+    /// Allocated frames
+    frames: Vec<PhysFrame>,
+    pub brk: VirtAddr,
+    pub brk_initial: VirtAddr,
+}
 
 impl UserProcess {
     /// Used for creating the initial process.
-    /// Reuses the initialisation page tables
-    pub fn new(mapper: OffsetPageTable<'static>) -> Arc<Mutex<Self>> {
-        let thread = Arc::new(Mutex::new(Thread::from_func(
-            enter_userspace,
-            Weak::new(),
-            None,
-        )));
+    /// Reuses the initialisation page tables.
+    /// Returns the PID of the new process.
+    pub fn create(mapper: OffsetPageTable<'static>) -> u32 {
+        let thread = Arc::new(Mutex::new(Thread::from_func(enter_userspace, None, None)));
 
-        let process = Arc::new(Mutex::new(UserProcess {
+        let process = UserProcess {
             files: BTreeMap::new(),
             next_fd: 0,
             mapper,
@@ -80,11 +119,15 @@ impl UserProcess {
             frames: vec![],
             brk: VirtAddr::new(0),
             brk_initial: VirtAddr::new(0),
-        }));
+        };
 
-        thread.lock().process = Arc::downgrade(&process);
+        thread.lock().process = Some(process.pid);
 
-        process
+        let pid = process.pid;
+
+        ProcessTable::add_process(process);
+
+        pid
     }
 
     /// See the POSIX execve system call for information on how it is used
