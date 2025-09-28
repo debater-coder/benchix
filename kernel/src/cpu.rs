@@ -60,6 +60,7 @@ impl PerCpu {
                 idle,
                 None,
                 Some("idle".to_owned()),
+                None,
             ))),
         }
     }

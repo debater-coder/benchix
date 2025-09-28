@@ -60,6 +60,13 @@ uint64_t execve(const char *pathname, char *const argv[], char *const envp[]) {
                    "ret;");
 }
 
+int fork(void) {
+  asm __volatile__("movq $57, %rax;"
+                   "syscall;"
+                   "ret;");
+}
+
+
 uint64_t strlen(char *str) {
   if (!str) {
     return 0;
@@ -82,7 +89,7 @@ bool streq(char *a, char *b) {
     a += 1;
     b += 1;
   }
-  return true;
+  return *a == 0 && *b == 0;
 }
 
 bool iserror(int64_t sysret_value) {
@@ -237,4 +244,23 @@ char *concat(char *a, char *b) {
   memcpy(result + lena, b, lenb);
 
   return result;
+}
+
+void putn(uint64_t n) {
+    char* buffer = malloc(21);
+
+    int i = 0;
+    while (n > 0) {
+        buffer[i] = '0' + n % 10;
+        n /= 10;
+        i++;
+    }
+
+    // reverse
+    for (int j = 0; j < i /2; j++) {
+        buffer[j] = buffer[i - j - 1];
+    }
+
+    write(STDOUT_FD, buffer, i);
+    free(buffer);
 }

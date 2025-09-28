@@ -9,14 +9,14 @@ use alloc::{
 use conquer_once::spin::OnceCell;
 use spin::Mutex;
 use x86_64::{
-    VirtAddr,
-    instructions::interrupts::{self, without_interrupts},
+    VirtAddr, instructions::interrupts::without_interrupts, registers::control::Cr3,
+    structures::paging::PhysFrame,
 };
 
 use crate::CPUS;
 
 /// DANGER LOCK: DISABLE INTERRUPTS BEFORE USE!!!
-static READY: OnceCell<Mutex<VecDeque<Arc<Mutex<Thread>>>>> = OnceCell::uninit();
+pub static READY: OnceCell<Mutex<VecDeque<Arc<Mutex<Thread>>>>> = OnceCell::uninit();
 static NEXT_TID: AtomicU32 = AtomicU32::new(0);
 
 /// Used Redox for reference.
@@ -53,6 +53,7 @@ pub struct Thread {
     /// Thread id
     pub tid: u32,
     pub name: Option<String>,
+    pub cr3_frame: Option<PhysFrame>,
 }
 
 impl core::fmt::Debug for Thread {
@@ -70,6 +71,7 @@ impl Thread {
         func: unsafe extern "sysv64" fn(),
         process: Option<u32>,
         name: Option<String>,
+        cr3_frame: Option<PhysFrame>, // No cr3 needed for stack-only threads (eg: idle)
     ) -> Thread {
         let mut thread = Thread {
             context: Context::new(),
@@ -77,6 +79,7 @@ impl Thread {
             process,
             tid: NEXT_TID.fetch_add(1, Ordering::Relaxed),
             name,
+            cr3_frame,
         };
 
         thread.set_func(func);
@@ -88,6 +91,10 @@ impl Thread {
         *self.kstack.last_mut().unwrap() = func as u64;
 
         self.context.rsp = self.kstack.last_mut().unwrap() as *const u64 as u64;
+    }
+
+    pub fn kstack_addr(&self) -> VirtAddr {
+        VirtAddr::from_ptr(self.kstack.as_ptr_range().end)
     }
 }
 
@@ -178,11 +185,19 @@ unsafe extern "sysv64" fn switch_finish_hook() {
     cpu.current_thread = cpu.next_thread.clone();
     cpu.next_thread = None;
 
-    unsafe {
-        cpu.set_ist(VirtAddr::new(
-            cpu.current_thread.clone().unwrap().lock().context.rsp,
-        ))
-    };
+    // Set the stack used to handle interrupts when they occur in user mode.
+    // When such an interrupt occurs the kernel will use our normal kernel stack
+    // rather than the user-mode stack.
+    unsafe { cpu.set_ist(cpu.current_thread.clone().unwrap().lock().kstack_addr()) };
+
+    debug_println!("page map");
+    // Switch the page-table mappings
+    if let Some(frame) = cpu.current_thread.clone().unwrap().lock().cr3_frame {
+        unsafe {
+            Cr3::write(frame, Cr3::read().1);
+        }
+    }
+    debug_println!("page mapped");
 }
 
 /// Yields to scheduler, but keep current thread in queue.
@@ -195,38 +210,39 @@ pub fn yield_and_continue() {
 
 /// Yields to scheduler to decide what should use CPU time.
 pub fn yield_execution() {
-    interrupts::disable();
-
-    let cpu = CPUS.get().unwrap().get_cpu();
-    let next_thread = {
-        READY
-            .get()
-            .expect("scheduler::init should have been called")
-            .lock()
-            .pop_front()
-    }
-    .unwrap_or(cpu.idle_thread.clone());
-
-    let current_thread = cpu.current_thread.as_mut();
-
-    let prev: &mut Context = match current_thread {
-        None => &mut Context::new(), // Dummy context
-        Some(thread) => {
-            // If the next thread and the current thread is the same, we will deadlock
-            if Arc::ptr_eq(&thread.clone(), &next_thread) {
-                debug_print!(".");
-                return;
-            }
-            debug_println!("Switching from {:?} to {:?}", thread, next_thread);
-            &mut thread.lock().context
+    without_interrupts(|| {
+        let cpu = CPUS.get().unwrap().get_cpu();
+        debug_println!("READY {:?}", READY.get());
+        let next_thread = {
+            READY
+                .get()
+                .expect("scheduler::init should have been called")
+                .lock()
+                .pop_front()
         }
-    };
+        .unwrap_or(cpu.idle_thread.clone());
 
-    let next = { next_thread.lock().context.clone() }; // The lock will be released after this
+        let current_thread = cpu.current_thread.as_mut();
 
-    CPUS.get().unwrap().get_cpu().next_thread = Some(next_thread.clone());
+        let prev: &mut Context = match current_thread {
+            None => &mut Context::new(), // Dummy context
+            Some(thread) => {
+                // If the next thread and the current thread is the same, we will deadlock
+                if Arc::ptr_eq(&thread.clone(), &next_thread) {
+                    debug_print!(".");
+                    return;
+                }
+                debug_println!("Switching from {:?} to {:?}", thread, next_thread);
+                &mut thread.lock().context
+            }
+        };
 
-    unsafe {
-        switch_to(prev, &next);
-    }
+        let next = { next_thread.lock().context.clone() }; // The lock will be released after this
+
+        CPUS.get().unwrap().get_cpu().next_thread = Some(next_thread.clone());
+
+        unsafe {
+            switch_to(prev, &next);
+        }
+    });
 }

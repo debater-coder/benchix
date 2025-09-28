@@ -1,7 +1,9 @@
 use core::arch::naked_asm;
+use core::iter::zip;
 use core::slice;
 use core::sync::atomic::{AtomicU32, Ordering};
 
+use alloc::borrow::ToOwned;
 use alloc::collections::btree_map::BTreeMap;
 use alloc::ffi::CString;
 use alloc::vec;
@@ -9,7 +11,9 @@ use alloc::{sync::Arc, vec::Vec};
 use conquer_once::spin::OnceCell;
 use spin::RwLock;
 use spin::mutex::Mutex;
-use x86_64::structures::paging::{FrameDeallocator, PhysFrame};
+use syscalls::syscall_ret;
+use x86_64::registers::control::Cr3;
+use x86_64::structures::paging::{FrameDeallocator, PageTable, PhysFrame};
 use x86_64::{
     VirtAddr,
     structures::paging::{FrameAllocator, Mapper, OffsetPageTable, Page, PageTableFlags, Size4KiB},
@@ -18,34 +22,14 @@ use x86_64::{
 use crate::PMM;
 use crate::scheduler::Thread;
 use crate::{debug_println, filesystem::vfs::Inode};
+use elf::{LoadingError, ProgramHeaderEntry};
 
 #[allow(dead_code)]
 pub mod constants;
 
+mod elf;
 pub mod syscalls;
 
-pub struct FileDescriptor {
-    pub inode: Arc<Inode>,
-    pub offset: u64,
-    pub flags: u32,
-}
-
-#[derive(Debug)]
-pub enum LoadingError {
-    InvalidHeader,
-}
-
-#[derive(Debug)]
-#[repr(C)]
-struct ProgramHeaderEntry {
-    segment_type: u64, // contains both p_type and p_flags
-    offset: u64,
-    virtual_address: u64,
-    unused: u64,
-    image_size: u64,
-    mem_size: u64,
-    align: u64,
-}
 static NEXT_PID: AtomicU32 = AtomicU32::new(1);
 static PROCESS_TABLE: OnceCell<ProcessTable> = OnceCell::uninit();
 
@@ -90,6 +74,12 @@ impl ProcessTable {
     }
 }
 
+pub struct FileDescriptor {
+    pub inode: Arc<Inode>,
+    pub offset: u64,
+    pub flags: u32,
+}
+
 pub struct UserProcess {
     /// Open file descriptors
     pub files: BTreeMap<u32, Arc<RwLock<FileDescriptor>>>, // So that file descriptors can be shared
@@ -101,6 +91,7 @@ pub struct UserProcess {
     frames: Vec<PhysFrame>,
     pub brk: VirtAddr,
     pub brk_initial: VirtAddr,
+    pub cr3_frame: PhysFrame,
 }
 
 impl UserProcess {
@@ -108,7 +99,12 @@ impl UserProcess {
     /// Reuses the initialisation page tables.
     /// Returns the PID of the new process.
     pub fn create(mapper: OffsetPageTable<'static>) -> u32 {
-        let thread = Arc::new(Mutex::new(Thread::from_func(enter_userspace, None, None)));
+        let thread = Arc::new(Mutex::new(Thread::from_func(
+            enter_userspace,
+            None,
+            None,
+            None,
+        )));
 
         let process = UserProcess {
             files: BTreeMap::new(),
@@ -119,9 +115,11 @@ impl UserProcess {
             frames: vec![],
             brk: VirtAddr::new(0),
             brk_initial: VirtAddr::new(0),
+            cr3_frame: Cr3::read().0,
         };
 
         thread.lock().process = Some(process.pid);
+        thread.lock().cr3_frame = Some(process.cr3_frame);
 
         let pid = process.pid;
 
@@ -167,13 +165,6 @@ impl UserProcess {
         // Clear previous userspace mappings (the entire lower half of the kernel)
         for entry in self.mapper.level_4_table_mut().iter_mut().take(256) {
             entry.set_unused();
-        }
-
-        // Dealloc previous frames
-        for frame in self.frames.drain(..) {
-            unsafe {
-                PMM.get().unwrap().lock().deallocate_frame(frame);
-            }
         }
 
         // Read program headers
@@ -243,6 +234,8 @@ impl UserProcess {
                 // Create mappings
                 // This looks like it leaks memory since map_to() can map frames when creating page tables.
                 // However there will only ever be a finite amount of page tables, so this is fine.
+                //
+                // EDIT: This is fine as long as page tables are cleaned up on process destruction (not implemented yet)
                 unsafe {
                     self.mapper
                         .map_to(
@@ -406,6 +399,211 @@ impl UserProcess {
             pmm.deallocate_frame(frame);
         }
     }
+
+    fn fork_page_table(
+        &self,
+        src: &PageTable,
+        lvl: usize,
+    ) -> (&'static mut PageTable, Vec<PhysFrame>, PhysFrame) {
+        let mut frames = vec![];
+
+        // Step 1: Allocate a new frame for this level
+        let frame = PMM
+            .get()
+            .unwrap()
+            .lock()
+            .allocate_frame()
+            .expect("no frame available");
+        frames.push(frame);
+
+        // Step 2: Compute dst pointer safely
+        let dst_phys = frame.start_address().as_u64();
+        let dst_ptr = self.mapper.phys_offset() + dst_phys;
+        let dst: &mut PageTable = unsafe { &mut *(dst_ptr.as_mut_ptr()) };
+
+        // Step 3: Zero the new page table
+        unsafe { core::ptr::write_bytes(dst as *mut PageTable as *mut u8, 0, 4096) };
+
+        // Step 4: Iterate over entries safely
+        for (i, parent) in src.iter().enumerate() {
+            if !parent.flags().contains(PageTableFlags::PRESENT) {
+                continue;
+            }
+
+            // Only recurse into user space
+            if parent.flags().contains(PageTableFlags::USER_ACCESSIBLE) && (i < 256 || lvl < 4) {
+                if lvl > 1 {
+                    // Validate parent pointer
+                    let parent_phys = parent.addr().as_u64();
+                    debug_assert_eq!(parent_phys % 4096, 0, "Parent not page-aligned");
+
+                    let parent_ptr =
+                        unsafe { &*(self.mapper.phys_offset() + parent_phys).as_ptr() };
+
+                    // Recursively fork user table
+                    let (_, mut new_frames, child_frame) =
+                        self.fork_page_table(parent_ptr, lvl - 1);
+                    frames.append(&mut new_frames);
+
+                    // Set the entry to the new child table frame
+                    dst[i].set_frame(child_frame, parent.flags());
+                } else {
+                    // Leaf page: allocate and copy safely
+                    let leaf_frame = PMM
+                        .get()
+                        .unwrap()
+                        .lock()
+                        .allocate_frame()
+                        .expect("no frame available");
+                    frames.push(leaf_frame);
+
+                    let leaf_dst_ptr =
+                        self.mapper.phys_offset() + leaf_frame.start_address().as_u64();
+                    let leaf_dst_slice: &mut [u8] =
+                        unsafe { core::slice::from_raw_parts_mut(leaf_dst_ptr.as_mut_ptr(), 4096) };
+                    let leaf_src_ptr = self.mapper.phys_offset() + parent.addr().as_u64();
+                    let leaf_src_slice: &[u8] =
+                        unsafe { core::slice::from_raw_parts(leaf_src_ptr.as_ptr(), 4096) };
+
+                    leaf_dst_slice.copy_from_slice(leaf_src_slice);
+                    dst[i].set_frame(leaf_frame, parent.flags());
+                }
+            } else {
+                // Kernel or shared entry: clone
+                dst[i] = parent.clone();
+            }
+        }
+
+        (dst, frames, frame)
+    }
+    // fn fork_page_table(
+    //     &self,
+    //     src: &PageTable,
+    //     lvl: usize,
+    // ) -> (&'static mut PageTable, Vec<PhysFrame>, PhysFrame) {
+    //     debug_println!("READY 00 {:?} {} \n\n", crate::scheduler::READY.get(), lvl);
+    //     let mut frames = vec![];
+    //     debug_println!("READY 01 {:?}\n\n", crate::scheduler::READY.get());
+    //     let frame = PMM
+    //         .get()
+    //         .unwrap()
+    //         .lock()
+    //         .allocate_frame()
+    //         .expect("no frame available");
+    //     debug_println!("READY 02 {:?}\n\n", crate::scheduler::READY.get());
+    //     frames.push(frame);
+
+    //     debug_println!("READY 03 {:?}\n\n", crate::scheduler::READY.get());
+    //     let dst: &mut PageTable = unsafe {
+    //         &mut *(self.mapper.phys_offset() + frame.start_address().as_u64()).as_mut_ptr()
+    //     };
+
+    //     debug_println!("READY 04 {:?}\n\n", crate::scheduler::READY.get());
+    //     *dst = PageTable::new();
+
+    //     debug_println!("READY 05 {:?}\n\n", crate::scheduler::READY.get());
+    //     for (i, (child, parent)) in zip(dst.iter_mut(), src.iter()).enumerate() {
+    //         if parent.flags().contains(PageTableFlags::PRESENT) {
+    //             if parent.flags().contains(PageTableFlags::USER_ACCESSIBLE) && (i < 256 || lvl < 4)
+    //             {
+    //                 if lvl > 1 {
+    //                     debug_println!("READY A- {:?}\n\n", crate::scheduler::READY.get());
+    //                     // Recurse
+    //                     let (_, mut new_frames, frame) = self.fork_page_table(
+    //                         unsafe {
+    //                             &*(self.mapper.phys_offset() + parent.addr().as_u64()).as_ptr()
+    //                         },
+    //                         lvl - 1,
+    //                     );
+    //                     frames.append(&mut new_frames);
+
+    //                     child.set_frame(frame, parent.flags());
+
+    //                     debug_println!("READY A {:?}\n\n", crate::scheduler::READY.get());
+    //                 } else {
+    //                     debug_println!("READY B0 {:?}\n\n", crate::scheduler::READY.get());
+    //                     // Copy raw page
+    //                     let frame = PMM
+    //                         .get()
+    //                         .unwrap()
+    //                         .lock()
+    //                         .allocate_frame()
+    //                         .expect("no frame available");
+
+    //                     debug_println!("READY B1 {:?}\n\n", crate::scheduler::READY.get());
+    //                     frames.push(frame);
+
+    //                     debug_println!("READY B2 {:?}\n\n", crate::scheduler::READY.get());
+    //                     let dst: &mut [u8] = unsafe {
+    //                         slice::from_raw_parts_mut(
+    //                             (self.mapper.phys_offset() + frame.start_address().as_u64())
+    //                                 .as_mut_ptr(),
+    //                             frame.size() as usize,
+    //                         )
+    //                     };
+
+    //                     debug_println!("READY B3 {:?}\n\n", crate::scheduler::READY.get());
+    //                     dst.copy_from_slice(unsafe {
+    //                         slice::from_raw_parts(
+    //                             (self.mapper.phys_offset() + parent.addr().as_u64()).as_ptr(),
+    //                             dst.len(),
+    //                         )
+    //                     });
+
+    //                     debug_println!("READY B4 {:?}\n\n", crate::scheduler::READY.get());
+    //                     child.set_frame(frame, parent.flags());
+    //                     debug_println!("READY B {:?}\n\n", crate::scheduler::READY.get());
+    //                 }
+    //             } else {
+    //                 *child = parent.clone(); // Only share kernel mappings
+    //                 debug_println!(
+    //                     "cloning kernel mapping: {:?} lvl {} entry {}",
+    //                     parent,
+    //                     lvl,
+    //                     i
+    //                 );
+    //                 debug_println!("READY C {:?}\n\n", crate::scheduler::READY.get());
+    //                 // We can't share any other type of mapping or we'd double free.
+    //             }
+    //         }
+    //     }
+
+    //     (dst, frames, frame)
+    // }
+
+    /// Forks the process by creating a copy of all mappings
+    /// and forking the thread. Returns the child PID.
+    pub fn fork(&self) -> u32 {
+        let (l4_table, frames, frame) = self.fork_page_table(self.mapper.level_4_table(), 4);
+        debug_println!("READY 1.0 {:?}\n\n", crate::scheduler::READY.get());
+        let mapper = unsafe { OffsetPageTable::new(l4_table, self.mapper.phys_offset()) };
+        debug_println!("READY 1.1 {:?}\n\n", crate::scheduler::READY.get());
+
+        let child = UserProcess {
+            files: self.files.clone(),
+            brk: self.brk,
+            brk_initial: self.brk_initial,
+            next_fd: self.next_fd,
+            pid: NEXT_PID.fetch_add(1, Ordering::Relaxed),
+            thread: Arc::new(Mutex::new(Thread::from_func(
+                forked_entry,
+                None,
+                Some("forked".to_owned()),
+                Some(frame),
+            ))),
+            frames,
+            mapper,
+            cr3_frame: frame,
+        };
+        debug_println!("READY 1.2 {:?}\n\n", crate::scheduler::READY.get());
+
+        child.thread.lock().process = Some(child.pid);
+
+        let pid = child.pid;
+        ProcessTable::add_process(child);
+
+        pid
+    }
 }
 
 /// Enters userspace, enabling interrupts. Since thread entry points
@@ -421,5 +619,24 @@ unsafe extern "sysv64" fn enter_userspace() {
         mov rcx, rbp
         mov r11, 0x0202
         sysretq"
+    )
+}
+
+/// Forked entry uses the top 6 items on the stack to restore callee-saved parameters to return to userspace
+#[unsafe(naked)]
+unsafe extern "sysv64" fn forked_entry() {
+    naked_asm!(
+        "
+        pop rbp
+        pop r15
+        pop r14
+        pop r13
+        pop r12
+        pop rbx
+
+        xor rax, rax // return 0
+
+        jmp {}
+        ", sym syscall_ret
     )
 }

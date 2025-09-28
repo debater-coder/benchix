@@ -15,10 +15,11 @@ use crate::{
     CPUS, VFS,
     filesystem::vfs::Filesystem,
     kernel_log,
-    scheduler::{self},
+    scheduler::{self, Thread, enqueue},
     user::{
         FileDescriptor,
         constants::{EBADF, EFAULT, ENOSYS, O_ACCMODE, O_RDONLY, O_RDWR, O_WRONLY},
+        forked_entry,
     },
 };
 
@@ -26,6 +27,16 @@ use super::{
     ProcessTable, UserProcess,
     constants::{ARCH_SET_FS, EINVAL, ENOTTY},
 };
+
+pub fn get_current_thread() -> Arc<Mutex<Thread>> {
+    CPUS.get()
+        .unwrap()
+        .get_cpu()
+        .current_thread
+        .as_mut()
+        .unwrap()
+        .clone()
+}
 
 extern "sysv64" fn get_kernel_stack() -> u64 {
     CPUS.get()
@@ -35,8 +46,8 @@ extern "sysv64" fn get_kernel_stack() -> u64 {
         .as_mut()
         .unwrap()
         .lock()
-        .context
-        .rsp
+        .kstack_addr()
+        .as_u64()
 }
 
 /// Gets the current process (for syscalls)
@@ -241,6 +252,46 @@ fn brk(addr: u64) -> u64 {
     process.brk.as_u64()
 }
 
+fn fork() -> u32 {
+    debug_println!("fork()");
+    debug_println!("READY BEFORE VERY MUCH SO {:?}\n\n", scheduler::READY.get());
+    let child = get_current_process().lock().fork();
+
+    debug_println!("READY 1 {:?}\n\n", scheduler::READY.get());
+    let thread = ProcessTable::get_by_pid(child)
+        .unwrap()
+        .lock()
+        .thread
+        .clone();
+
+    {
+        let mut thread = thread.lock();
+        // Clone over the top 6 elements from the kernel stack (this is essentially our "trapframe")
+
+        let current_thread = get_current_thread();
+        let current_thread = current_thread.lock();
+
+        let src = current_thread.kstack.last_chunk::<6>().unwrap();
+        debug_println!("src {:x?}", src);
+        thread
+            .kstack
+            .last_chunk_mut::<6>()
+            .unwrap()
+            .copy_from_slice(src);
+
+        // For ret to work, the top element needs to be address to entry point
+        *thread.kstack.iter_mut().nth_back(6).unwrap() = forked_entry as u64;
+
+        thread.context.rsp = thread.kstack.iter().nth_back(6).unwrap() as *const u64 as u64;
+    }
+
+    debug_println!("READY BEFORE {:?}\n\n", scheduler::READY.get());
+    enqueue(thread);
+    debug_println!("READY AFTER {:?}\n\n", scheduler::READY.get());
+
+    child
+}
+
 pub extern "sysv64" fn handle_syscall_inner(
     syscall_number: u64,
     arg0: u64,
@@ -257,6 +308,7 @@ pub extern "sysv64" fn handle_syscall_inner(
         16 => -ENOTTY as u64, // ioctl
         158 => arch_prctl(arg0 as u32, arg1),
         231 => exit(arg0 as i32), // exit_group
+        57 => fork() as u64,
         59 => execve(
             arg0 as usize as *const _,
             arg1 as usize as *const _,
@@ -285,9 +337,10 @@ pub unsafe extern "sysv64" fn handle_syscall() {
     naked_asm!(
         "
         // systretq uses these
-        push rcx
-        push r11
+        push rcx // saved rip
+        push r11 // saved rflags
 
+        // We use these two callee-saved registers so back up the original values
         push rbp // Will store old sp
         push rbx // Will store new sp
 
@@ -310,6 +363,8 @@ pub unsafe extern "sysv64" fn handle_syscall() {
         mov rbp, rsp // backup userspace stack
         mov rsp, rbx // switch to new stack
 
+        // === FROM NOW ON WE ARE ON KERNEL STACK ===
+
         // We push args to new stack
         push rax // sycall number
         push rdi // arg0
@@ -324,15 +379,38 @@ pub unsafe extern "sysv64" fn handle_syscall() {
         pop rsi
         pop rdi
 
+        /// AT THIS POINT THE KERNEL STACK SHOULD BE EMPTY (the following should be pushed at the base)
+
+        // Save callee-saved registers so that they can be used in forked_entry:
+        push rbx
+        push r12
+        push r13
+        push r14
+        push r15
+        push rbp
+
         call {}
 
+        // No need to pop from the kernel stack, syscall_ret doesn't use it
+        jmp {}
+        ",
+        sym get_kernel_stack,
+        sym handle_syscall_inner,
+        sym syscall_ret
+    );
+}
+
+/// Handles returning to userspace (including switching to userspace stack using the callee-saved rbp register)
+#[unsafe(naked)]
+pub unsafe extern "sysv64" fn syscall_ret() {
+    naked_asm!(
+        "
         mov rsp, rbp // Restore userspace stack
         pop rbx
         pop rbp
         pop r11
         pop rcx
-        sysretq",
-        sym get_kernel_stack,
-        sym handle_syscall_inner
-    );
+        sysretq
+        "
+    )
 }
