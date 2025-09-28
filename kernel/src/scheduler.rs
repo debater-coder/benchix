@@ -16,7 +16,7 @@ use x86_64::{
 use crate::CPUS;
 
 /// DANGER LOCK: DISABLE INTERRUPTS BEFORE USE!!!
-pub static READY: OnceCell<Mutex<VecDeque<Arc<Mutex<Thread>>>>> = OnceCell::uninit();
+static READY: OnceCell<Mutex<VecDeque<Arc<Mutex<Thread>>>>> = OnceCell::uninit();
 static NEXT_TID: AtomicU32 = AtomicU32::new(0);
 
 /// Used Redox for reference.
@@ -190,14 +190,12 @@ unsafe extern "sysv64" fn switch_finish_hook() {
     // rather than the user-mode stack.
     unsafe { cpu.set_ist(cpu.current_thread.clone().unwrap().lock().kstack_addr()) };
 
-    debug_println!("page map");
     // Switch the page-table mappings
     if let Some(frame) = cpu.current_thread.clone().unwrap().lock().cr3_frame {
         unsafe {
             Cr3::write(frame, Cr3::read().1);
         }
     }
-    debug_println!("page mapped");
 }
 
 /// Yields to scheduler, but keep current thread in queue.
@@ -212,7 +210,6 @@ pub fn yield_and_continue() {
 pub fn yield_execution() {
     without_interrupts(|| {
         let cpu = CPUS.get().unwrap().get_cpu();
-        debug_println!("READY {:?}", READY.get());
         let next_thread = {
             READY
                 .get()

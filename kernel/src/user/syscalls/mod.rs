@@ -254,10 +254,8 @@ fn brk(addr: u64) -> u64 {
 
 fn fork() -> u32 {
     debug_println!("fork()");
-    debug_println!("READY BEFORE VERY MUCH SO {:?}\n\n", scheduler::READY.get());
     let child = get_current_process().lock().fork();
 
-    debug_println!("READY 1 {:?}\n\n", scheduler::READY.get());
     let thread = ProcessTable::get_by_pid(child)
         .unwrap()
         .lock()
@@ -285,9 +283,7 @@ fn fork() -> u32 {
         thread.context.rsp = thread.kstack.iter().nth_back(6).unwrap() as *const u64 as u64;
     }
 
-    debug_println!("READY BEFORE {:?}\n\n", scheduler::READY.get());
     enqueue(thread);
-    debug_println!("READY AFTER {:?}\n\n", scheduler::READY.get());
 
     child
 }

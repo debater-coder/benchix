@@ -1,5 +1,4 @@
 use core::arch::naked_asm;
-use core::iter::zip;
 use core::slice;
 use core::sync::atomic::{AtomicU32, Ordering};
 
@@ -407,7 +406,6 @@ impl UserProcess {
     ) -> (&'static mut PageTable, Vec<PhysFrame>, PhysFrame) {
         let mut frames = vec![];
 
-        // Step 1: Allocate a new frame for this level
         let frame = PMM
             .get()
             .unwrap()
@@ -416,168 +414,77 @@ impl UserProcess {
             .expect("no frame available");
         frames.push(frame);
 
-        // Step 2: Compute dst pointer safely
-        let dst_phys = frame.start_address().as_u64();
-        let dst_ptr = self.mapper.phys_offset() + dst_phys;
-        let dst: &mut PageTable = unsafe { &mut *(dst_ptr.as_mut_ptr()) };
+        let dst: &mut PageTable = unsafe {
+            &mut *(self.mapper.phys_offset() + frame.start_address().as_u64()).as_mut_ptr()
+        };
 
-        // Step 3: Zero the new page table
+        // Ensure destination page table is zeroed before writing to it
         unsafe { core::ptr::write_bytes(dst as *mut PageTable as *mut u8, 0, 4096) };
 
-        // Step 4: Iterate over entries safely
+        // Trying to write *dst = PageTable::new() was problematic
+
         for (i, parent) in src.iter().enumerate() {
             if !parent.flags().contains(PageTableFlags::PRESENT) {
                 continue;
             }
-
-            // Only recurse into user space
             if parent.flags().contains(PageTableFlags::USER_ACCESSIBLE) && (i < 256 || lvl < 4) {
                 if lvl > 1 {
-                    // Validate parent pointer
-                    let parent_phys = parent.addr().as_u64();
-                    debug_assert_eq!(parent_phys % 4096, 0, "Parent not page-aligned");
-
-                    let parent_ptr =
-                        unsafe { &*(self.mapper.phys_offset() + parent_phys).as_ptr() };
-
-                    // Recursively fork user table
-                    let (_, mut new_frames, child_frame) =
-                        self.fork_page_table(parent_ptr, lvl - 1);
+                    // Recurse
+                    let (_, mut new_frames, frame) = self.fork_page_table(
+                        unsafe { &*(self.mapper.phys_offset() + parent.addr().as_u64()).as_ptr() },
+                        lvl - 1,
+                    );
                     frames.append(&mut new_frames);
 
-                    // Set the entry to the new child table frame
-                    dst[i].set_frame(child_frame, parent.flags());
+                    dst[i].set_frame(frame, parent.flags());
                 } else {
-                    // Leaf page: allocate and copy safely
-                    let leaf_frame = PMM
+                    // Copy raw page
+                    let frame = PMM
                         .get()
                         .unwrap()
                         .lock()
                         .allocate_frame()
                         .expect("no frame available");
-                    frames.push(leaf_frame);
 
-                    let leaf_dst_ptr =
-                        self.mapper.phys_offset() + leaf_frame.start_address().as_u64();
-                    let leaf_dst_slice: &mut [u8] =
-                        unsafe { core::slice::from_raw_parts_mut(leaf_dst_ptr.as_mut_ptr(), 4096) };
-                    let leaf_src_ptr = self.mapper.phys_offset() + parent.addr().as_u64();
-                    let leaf_src_slice: &[u8] =
-                        unsafe { core::slice::from_raw_parts(leaf_src_ptr.as_ptr(), 4096) };
+                    frames.push(frame);
 
-                    leaf_dst_slice.copy_from_slice(leaf_src_slice);
-                    dst[i].set_frame(leaf_frame, parent.flags());
+                    let leaf_dst: &mut [u8] = unsafe {
+                        slice::from_raw_parts_mut(
+                            (self.mapper.phys_offset() + frame.start_address().as_u64())
+                                .as_mut_ptr(),
+                            frame.size() as usize,
+                        )
+                    };
+
+                    leaf_dst.copy_from_slice(unsafe {
+                        slice::from_raw_parts(
+                            (self.mapper.phys_offset() + parent.addr().as_u64()).as_ptr(),
+                            leaf_dst.len(),
+                        )
+                    });
+
+                    dst[i].set_frame(frame, parent.flags());
                 }
             } else {
-                // Kernel or shared entry: clone
-                dst[i] = parent.clone();
+                dst[i] = parent.clone(); // Only share kernel mappings
+                debug_println!(
+                    "cloning kernel mapping: {:?} lvl {} entry {}",
+                    parent,
+                    lvl,
+                    i
+                );
+                // We can't share any other type of mapping or we'd double free.
             }
         }
 
         (dst, frames, frame)
     }
-    // fn fork_page_table(
-    //     &self,
-    //     src: &PageTable,
-    //     lvl: usize,
-    // ) -> (&'static mut PageTable, Vec<PhysFrame>, PhysFrame) {
-    //     debug_println!("READY 00 {:?} {} \n\n", crate::scheduler::READY.get(), lvl);
-    //     let mut frames = vec![];
-    //     debug_println!("READY 01 {:?}\n\n", crate::scheduler::READY.get());
-    //     let frame = PMM
-    //         .get()
-    //         .unwrap()
-    //         .lock()
-    //         .allocate_frame()
-    //         .expect("no frame available");
-    //     debug_println!("READY 02 {:?}\n\n", crate::scheduler::READY.get());
-    //     frames.push(frame);
-
-    //     debug_println!("READY 03 {:?}\n\n", crate::scheduler::READY.get());
-    //     let dst: &mut PageTable = unsafe {
-    //         &mut *(self.mapper.phys_offset() + frame.start_address().as_u64()).as_mut_ptr()
-    //     };
-
-    //     debug_println!("READY 04 {:?}\n\n", crate::scheduler::READY.get());
-    //     *dst = PageTable::new();
-
-    //     debug_println!("READY 05 {:?}\n\n", crate::scheduler::READY.get());
-    //     for (i, (child, parent)) in zip(dst.iter_mut(), src.iter()).enumerate() {
-    //         if parent.flags().contains(PageTableFlags::PRESENT) {
-    //             if parent.flags().contains(PageTableFlags::USER_ACCESSIBLE) && (i < 256 || lvl < 4)
-    //             {
-    //                 if lvl > 1 {
-    //                     debug_println!("READY A- {:?}\n\n", crate::scheduler::READY.get());
-    //                     // Recurse
-    //                     let (_, mut new_frames, frame) = self.fork_page_table(
-    //                         unsafe {
-    //                             &*(self.mapper.phys_offset() + parent.addr().as_u64()).as_ptr()
-    //                         },
-    //                         lvl - 1,
-    //                     );
-    //                     frames.append(&mut new_frames);
-
-    //                     child.set_frame(frame, parent.flags());
-
-    //                     debug_println!("READY A {:?}\n\n", crate::scheduler::READY.get());
-    //                 } else {
-    //                     debug_println!("READY B0 {:?}\n\n", crate::scheduler::READY.get());
-    //                     // Copy raw page
-    //                     let frame = PMM
-    //                         .get()
-    //                         .unwrap()
-    //                         .lock()
-    //                         .allocate_frame()
-    //                         .expect("no frame available");
-
-    //                     debug_println!("READY B1 {:?}\n\n", crate::scheduler::READY.get());
-    //                     frames.push(frame);
-
-    //                     debug_println!("READY B2 {:?}\n\n", crate::scheduler::READY.get());
-    //                     let dst: &mut [u8] = unsafe {
-    //                         slice::from_raw_parts_mut(
-    //                             (self.mapper.phys_offset() + frame.start_address().as_u64())
-    //                                 .as_mut_ptr(),
-    //                             frame.size() as usize,
-    //                         )
-    //                     };
-
-    //                     debug_println!("READY B3 {:?}\n\n", crate::scheduler::READY.get());
-    //                     dst.copy_from_slice(unsafe {
-    //                         slice::from_raw_parts(
-    //                             (self.mapper.phys_offset() + parent.addr().as_u64()).as_ptr(),
-    //                             dst.len(),
-    //                         )
-    //                     });
-
-    //                     debug_println!("READY B4 {:?}\n\n", crate::scheduler::READY.get());
-    //                     child.set_frame(frame, parent.flags());
-    //                     debug_println!("READY B {:?}\n\n", crate::scheduler::READY.get());
-    //                 }
-    //             } else {
-    //                 *child = parent.clone(); // Only share kernel mappings
-    //                 debug_println!(
-    //                     "cloning kernel mapping: {:?} lvl {} entry {}",
-    //                     parent,
-    //                     lvl,
-    //                     i
-    //                 );
-    //                 debug_println!("READY C {:?}\n\n", crate::scheduler::READY.get());
-    //                 // We can't share any other type of mapping or we'd double free.
-    //             }
-    //         }
-    //     }
-
-    //     (dst, frames, frame)
-    // }
 
     /// Forks the process by creating a copy of all mappings
     /// and forking the thread. Returns the child PID.
     pub fn fork(&self) -> u32 {
         let (l4_table, frames, frame) = self.fork_page_table(self.mapper.level_4_table(), 4);
-        debug_println!("READY 1.0 {:?}\n\n", crate::scheduler::READY.get());
         let mapper = unsafe { OffsetPageTable::new(l4_table, self.mapper.phys_offset()) };
-        debug_println!("READY 1.1 {:?}\n\n", crate::scheduler::READY.get());
 
         let child = UserProcess {
             files: self.files.clone(),
@@ -595,7 +502,6 @@ impl UserProcess {
             mapper,
             cr3_frame: frame,
         };
-        debug_println!("READY 1.2 {:?}\n\n", crate::scheduler::READY.get());
 
         child.thread.lock().process = Some(child.pid);
 
