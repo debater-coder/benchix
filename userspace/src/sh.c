@@ -22,14 +22,13 @@ void interpret_cmd(char *line) {
       // execve(args[0], args, 0);
 
       // ok then try /bin/...
-      int pid;
-      if ((pid = fork()) > 0) {
-        puts("Started process with PID ");
-        putn(pid);
-      } else {
+      int pid = fork();
+      if (pid == 0) {
         char *path = concat("/bin/", args[0]);
         args[0] = path;        // Update to true path of executable
         execve(path, args, 0); // No env for now
+      } else {
+        waitid(P_PID, pid);
       }
 
       // // no

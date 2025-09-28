@@ -15,16 +15,16 @@ use crate::{
     CPUS, VFS,
     filesystem::vfs::Filesystem,
     kernel_log,
-    scheduler::{self, Thread, enqueue},
+    scheduler::{self, Thread, enqueue, yield_execution},
     user::{
-        FileDescriptor,
+        FileDescriptor, ProcessStatus,
         constants::{EBADF, EFAULT, ENOSYS, O_ACCMODE, O_RDONLY, O_RDWR, O_WRONLY},
     },
 };
 
 use super::{
     ProcessTable, UserProcess,
-    constants::{ARCH_SET_FS, EINVAL, ENOTTY},
+    constants::{ARCH_SET_FS, ECHILD, EINVAL, ENOTTY, P_PID},
 };
 
 pub fn get_current_thread() -> Arc<Mutex<Thread>> {
@@ -181,7 +181,16 @@ fn close(fd: u32) -> u64 {
 }
 
 fn exit(status: i32) -> ! {
-    kernel_log!("Process exited with code {}", status);
+    let process = get_current_process();
+
+    process.lock().status = ProcessStatus::Terminated;
+
+    // Release waiting threads
+    for thread in process.lock().waiting.drain(..) {
+        enqueue(thread);
+    }
+
+    kernel_log!("Process {} exited with code {}", process.lock().pid, status);
     loop {
         scheduler::yield_execution();
     }
@@ -284,6 +293,25 @@ fn fork() -> u32 {
     child
 }
 
+fn waitid(id_type: u32, id: u32) -> u64 {
+    debug_println!("waitid({}, {})", id_type, id);
+    match id_type {
+        P_PID => {
+            if let Some(process) = ProcessTable::get_by_pid(id) {
+                while process.lock().status != ProcessStatus::Terminated {
+                    process.lock().waiting.push(get_current_thread());
+                    yield_execution(); // yield without enqueue == wait
+                }
+
+                0
+            } else {
+                -ECHILD as u64
+            }
+        }
+        _ => -EINVAL as u64,
+    }
+}
+
 pub extern "sysv64" fn handle_syscall_inner(
     syscall_number: u64,
     arg0: u64,
@@ -306,6 +334,7 @@ pub extern "sysv64" fn handle_syscall_inner(
             arg1 as usize as *const _,
             arg2 as usize as *const _,
         ),
+        247 => waitid(arg0 as u32, arg1 as u32),
         60 => exit(arg0 as i32),
         _ => {
             debug_println!(

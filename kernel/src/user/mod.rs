@@ -78,6 +78,12 @@ pub struct FileDescriptor {
     pub flags: u32,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum ProcessStatus {
+    Running,
+    Terminated,
+}
+
 pub struct UserProcess {
     /// Open file descriptors
     pub files: BTreeMap<u32, Arc<RwLock<FileDescriptor>>>, // So that file descriptors can be shared
@@ -90,6 +96,9 @@ pub struct UserProcess {
     pub brk: VirtAddr,
     pub brk_initial: VirtAddr,
     pub cr3_frame: PhysFrame,
+    pub status: ProcessStatus,
+    /// Queue of threads waiting for termination
+    pub waiting: Vec<Arc<Mutex<Thread>>>,
 }
 
 impl UserProcess {
@@ -114,6 +123,8 @@ impl UserProcess {
             brk: VirtAddr::new(0),
             brk_initial: VirtAddr::new(0),
             cr3_frame: Cr3::read().0,
+            status: ProcessStatus::Running,
+            waiting: vec![],
         };
 
         thread.lock().process = Some(process.pid);
@@ -500,6 +511,8 @@ impl UserProcess {
             frames,
             mapper,
             cr3_frame: frame,
+            status: ProcessStatus::Running,
+            waiting: vec![],
         };
 
         child.thread.lock().process = Some(child.pid);

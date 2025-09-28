@@ -62,3 +62,18 @@ pub const ARCH_GET_GS: u32 = 0x1004;
 
 pub const ARCH_GET_CPUID: u32 = 0x1011;
 pub const ARCH_SET_CPUID: u32 = 0x1012;
+
+// include/uapi/linux/wait.h
+
+pub const WNOHANG: u32 = 0x00000001;
+pub const WUNTRACED: u32 = 0x00000002;
+pub const WSTOPPED: u32 = WUNTRACED;
+pub const WEXITED: u32 = 0x00000004;
+pub const WCONTINUED: u32 = 0x00000008;
+pub const WNOWAIT: u32 = 0x01000000; /* Don't reap, just poll status.  */
+
+/* First argument to waitid: */
+pub const P_ALL: u32 = 0;
+pub const P_PID: u32 = 1;
+pub const P_PGID: u32 = 2;
+pub const P_PIDFD: u32 = 3;

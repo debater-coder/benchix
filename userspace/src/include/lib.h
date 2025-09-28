@@ -12,6 +12,8 @@
 
 #define EOF -1
 
+#define P_PID 1
+
 struct free_node {
   int size; // Inclusive of free_node contents
   struct free_node *next;
@@ -66,6 +68,11 @@ int fork(void) {
                    "ret;");
 }
 
+int waitid(int id_type, int id) {
+  asm __volatile__("movq $247, %rax;"
+                   "syscall;"
+                   "ret;");
+}
 
 uint64_t strlen(char *str) {
   if (!str) {
