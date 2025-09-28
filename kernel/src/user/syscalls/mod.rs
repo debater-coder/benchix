@@ -19,7 +19,6 @@ use crate::{
     user::{
         FileDescriptor,
         constants::{EBADF, EFAULT, ENOSYS, O_ACCMODE, O_RDONLY, O_RDWR, O_WRONLY},
-        forked_entry,
     },
 };
 
@@ -264,23 +263,20 @@ fn fork() -> u32 {
 
     {
         let mut thread = thread.lock();
-        // Clone over the top 6 elements from the kernel stack (this is essentially our "trapframe")
+        // Restore the "trapframe" (callee-saved registers saved at the top of kstack)
 
         let current_thread = get_current_thread();
         let current_thread = current_thread.lock();
 
-        let src = current_thread.kstack.last_chunk::<6>().unwrap();
-        debug_println!("src {:x?}", src);
-        thread
-            .kstack
-            .last_chunk_mut::<6>()
-            .unwrap()
-            .copy_from_slice(src);
+        let trapframe = current_thread.kstack.last_chunk::<6>().unwrap();
 
-        // For ret to work, the top element needs to be address to entry point
-        *thread.kstack.iter_mut().nth_back(6).unwrap() = forked_entry as u64;
-
-        thread.context.rsp = thread.kstack.iter().nth_back(6).unwrap() as *const u64 as u64;
+        // What we pushed last will have the lowest address (first in our slice)
+        thread.context.rbp = trapframe[0];
+        thread.context.r15 = trapframe[1];
+        thread.context.r14 = trapframe[2];
+        thread.context.r13 = trapframe[3];
+        thread.context.r12 = trapframe[4];
+        thread.context.rbx = trapframe[5];
     }
 
     enqueue(thread);

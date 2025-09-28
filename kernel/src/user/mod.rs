@@ -2,7 +2,6 @@ use core::arch::naked_asm;
 use core::slice;
 use core::sync::atomic::{AtomicU32, Ordering};
 
-use alloc::borrow::ToOwned;
 use alloc::collections::btree_map::BTreeMap;
 use alloc::ffi::CString;
 use alloc::vec;
@@ -495,7 +494,7 @@ impl UserProcess {
             thread: Arc::new(Mutex::new(Thread::from_func(
                 forked_entry,
                 None,
-                Some("forked".to_owned()),
+                None,
                 Some(frame),
             ))),
             frames,
@@ -528,20 +527,12 @@ unsafe extern "sysv64" fn enter_userspace() {
     )
 }
 
-/// Forked entry uses the top 6 items on the stack to restore callee-saved parameters to return to userspace
+/// zeroes return and returns from syscall
 #[unsafe(naked)]
 unsafe extern "sysv64" fn forked_entry() {
     naked_asm!(
         "
-        pop rbp
-        pop r15
-        pop r14
-        pop r13
-        pop r12
-        pop rbx
-
         xor rax, rax // return 0
-
         jmp {}
         ", sym syscall_ret
     )
