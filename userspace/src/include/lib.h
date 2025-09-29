@@ -125,51 +125,14 @@ void *sbrk(intptr_t increment) {
 }
 
 void *malloc(uint64_t size) {
-  struct free_node *curr = free_start;
-  struct free_node *prev = 0;
+    void* ptr = sbrk(size + sizeof(struct alloc_header));
+    ((struct alloc_header *)ptr)->magic = 0xdeadbeef;
+    ((struct alloc_header *)ptr)->size = size;
 
-  while (curr != 0) {
-    if (curr->size >= size + sizeof(struct alloc_header)) {
-      if (prev != 0) {
-        prev->next = curr->next; // Remove from freelist
-      } else {
-          free_start = curr->next;
-      }
-      ((struct alloc_header *)curr)->magic = 0xdeadbeef;
-      ((struct alloc_header *)curr)->size = size;
-
-      return (void *)(curr) + sizeof(struct alloc_header);
-    }
-
-    prev = curr;
-    curr = curr->next;
-  }
-
-  struct alloc_header *alloc = sbrk(size + sizeof(struct alloc_header));
-
-  alloc->size = size;
-  alloc->magic = 0xdeadbeef;
-
-  return (void *)(alloc) + sizeof(struct alloc_header);
+    return ptr + sizeof(struct alloc_header);
 }
 
-void free(void *ptr) {
-  if (ptr == 0) {
-    return;
-  }
-  struct alloc_header *header = ptr - sizeof(struct alloc_header);
-
-  if (header->magic != 0xdeadbeef) {
-    puts("WARNING: non-malloc header passed to free()");
-    return;
-  }
-
-  // Push free slot to start of free list
-  ((struct free_node *)header)->size =
-      header->size + sizeof(struct alloc_header);
-  ((struct free_node *)header)->next = free_start;
-  free_start = (struct free_node *)header;
-}
+void free(void *ptr) {}
 
 void *memcpy(void *dest, void *src, uint64_t n) {
   for (int i = 0; i < n; i++) {
@@ -186,6 +149,7 @@ void *realloc(void *ptr, uint64_t size) {
       puts("WARNING: non-malloc header passed to realloc()");
     } else {
       memcpy(alloc, ptr, header->size);
+      free(ptr);
     }
   }
 
@@ -254,20 +218,20 @@ char *concat(char *a, char *b) {
 }
 
 void putn(uint64_t n) {
-    char* buffer = malloc(21);
+  char *buffer = malloc(21);
 
-    int i = 0;
-    while (n > 0) {
-        buffer[i] = '0' + n % 10;
-        n /= 10;
-        i++;
-    }
+  int i = 0;
+  while (n > 0) {
+    buffer[i] = '0' + n % 10;
+    n /= 10;
+    i++;
+  }
 
-    // reverse
-    for (int j = 0; j < i /2; j++) {
-        buffer[j] = buffer[i - j - 1];
-    }
+  // reverse
+  for (int j = 0; j < i / 2; j++) {
+    buffer[j] = buffer[i - j - 1];
+  }
 
-    write(STDOUT_FD, buffer, i);
-    free(buffer);
+  write(STDOUT_FD, buffer, i);
+  free(buffer);
 }
