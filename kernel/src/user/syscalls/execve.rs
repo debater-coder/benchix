@@ -1,5 +1,6 @@
 use crate::{
-    CPUS, filesystem,
+    cpu::PerCpu,
+    filesystem,
     scheduler::{enqueue, yield_execution},
     user::{
         enter_userspace,
@@ -67,7 +68,7 @@ pub(super) fn execve_inner(
                 let process = process.lock(); // In a block to ensure mutex guard is dropped before scheduler
 
                 // Prevent context switch from saving current state (and overriding execve's work)
-                CPUS.get().unwrap().get_cpu().current_thread = None;
+                unsafe { PerCpu::get_cpu() }.current_thread = None;
 
                 // Set entry point of process to switch to the userspace entry point (bypassing normal syscall machinery)
                 process.thread.lock().set_func(enter_userspace);

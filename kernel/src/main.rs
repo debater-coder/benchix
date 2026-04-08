@@ -6,7 +6,7 @@ extern crate alloc;
 use acpi::{AcpiTables, PlatformInfo};
 use alloc::boxed::Box;
 use conquer_once::spin::OnceCell;
-use cpu::{Cpus, PerCpu};
+use cpu::PerCpu;
 use filesystem::devfs::Devfs;
 use filesystem::ramdisk::Ramdisk;
 use filesystem::vfs::{Filesystem, VirtualFileSystem};
@@ -70,7 +70,6 @@ macro_rules! kernel_log {
 }
 
 pub static VFS: OnceCell<VirtualFileSystem> = OnceCell::uninit();
-pub static CPUS: OnceCell<Cpus> = OnceCell::uninit();
 pub static PMM: OnceCell<Mutex<PhysicalMemoryManager>> = OnceCell::uninit();
 
 bootloader_api::entry_point!(kernel_main, config = &BOOTLOADER_CONFIG);
@@ -90,10 +89,7 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     let (mut mapper, pmm) = unsafe { memory::init(physical_offset, &boot_info.memory_regions) };
     PMM.get_or_init(|| Mutex::new(pmm));
 
-    CPUS.init_once(|| Cpus::new(unsafe { PerCpu::init_cpu() }));
-    unsafe {
-        CPUS.get().unwrap().get_cpu().init_gdt();
-    }
+    unsafe { PerCpu::init_cpu() };
 
     let mut console = Console::new(framebuffer);
     early_log!(&mut console, "Console initialised.");

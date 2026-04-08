@@ -1,6 +1,6 @@
 mod execve;
 
-use core::{arch::naked_asm, ffi::CStr, slice};
+use core::{arch::naked_asm, ffi::CStr, mem::offset_of, slice};
 
 use alloc::sync::Arc;
 use execve::execve_inner;
@@ -12,7 +12,8 @@ use x86_64::{
 };
 
 use crate::{
-    CPUS, VFS,
+    VFS,
+    cpu::PerCpu,
     filesystem::vfs::Filesystem,
     kernel_log,
     scheduler::{self, Thread, enqueue, yield_execution},
@@ -28,25 +29,11 @@ use super::{
 };
 
 pub fn get_current_thread() -> Arc<Mutex<Thread>> {
-    CPUS.get()
-        .unwrap()
-        .get_cpu()
+    unsafe { PerCpu::get_cpu() }
         .current_thread
         .as_mut()
         .unwrap()
         .clone()
-}
-
-extern "sysv64" fn get_kernel_stack() -> u64 {
-    CPUS.get()
-        .unwrap()
-        .get_cpu()
-        .current_thread
-        .as_mut()
-        .unwrap()
-        .lock()
-        .kstack_addr()
-        .as_u64()
 }
 
 /// Gets the current process (for syscalls)
@@ -54,9 +41,7 @@ extern "sysv64" fn get_kernel_stack() -> u64 {
 /// If there is no current process or the CPU struct isn't initialised
 fn get_current_process() -> Arc<Mutex<UserProcess>> {
     ProcessTable::get_by_pid(
-        CPUS.get()
-            .unwrap()
-            .get_cpu()
+        unsafe { PerCpu::get_cpu() }
             .current_thread
             .as_mut()
             .unwrap()
@@ -272,20 +257,17 @@ fn fork() -> u32 {
 
     {
         let mut thread = thread.lock();
-        // Restore the "trapframe" (callee-saved registers saved at the top of kstack)
 
         let current_thread = get_current_thread();
         let current_thread = current_thread.lock();
 
-        let trapframe = current_thread.kstack.last_chunk::<6>().unwrap();
+        // Restore the "trapframe" (callee-saved registers saved at the top of kstack)
+        let trapframe = current_thread.trapframe();
+        thread.trapframe_mut().copy_from_slice(trapframe);
 
-        // What we pushed last will have the lowest address (first in our slice)
-        thread.context.rbp = trapframe[0];
-        thread.context.r15 = trapframe[1];
-        thread.context.r14 = trapframe[2];
-        thread.context.r13 = trapframe[3];
-        thread.context.r12 = trapframe[4];
-        thread.context.rbx = trapframe[5];
+        // Thread::set_func() already sets the return address below the
+        // trapframe, and the correct rsp so that on entering into the thread we
+        // can pop from it.
     }
 
     enqueue(thread);
@@ -312,13 +294,14 @@ fn waitid(id_type: u32, id: u32) -> u64 {
     }
 }
 
-pub extern "sysv64" fn handle_syscall_inner(
-    syscall_number: u64,
-    arg0: u64,
-    arg1: u64,
-    arg2: u64,
-    arg3: u64,
-) -> u64 {
+pub extern "sysv64" fn handle_syscall_inner(syscall_number: u64) -> u64 {
+    let (arg0, arg1, arg2, arg3) = {
+        let current_thread = get_current_thread();
+        let current_thread = current_thread.lock();
+        let trapframe = current_thread.trapframe();
+        (trapframe[0], trapframe[1], trapframe[2], trapframe[3])
+    };
+
     let retval = match syscall_number {
         0 => read(arg0 as u32, arg1 as usize as *mut _, arg2 as usize) as u64,
         1 => write(arg0 as u32, arg1 as usize as *mut _, arg2 as usize) as u64,
@@ -357,80 +340,65 @@ pub unsafe extern "sysv64" fn handle_syscall() {
     // save registers required by sysretq
     naked_asm!(
         "
-        // systretq uses these
-        push rcx // saved rip
-        push r11 // saved rflags
-
-        // We use these two callee-saved registers so back up the original values
-        push rbp // Will store old sp
-        push rbx // Will store new sp
-
-        push rax // sycall number
-        push rdi // arg0
-        push rsi // arg1
-        push rdx // arg2
-        push r10 // arg3
-
-        call {} // Return value is now in rax
-        mov rbx, rax // RBX = new sp
-
-        // Restore syscall params
-        pop r10
-        pop rdx
-        pop rsi
-        pop rdi
-        pop rax
-
-        mov rbp, rsp // backup userspace stack
-        mov rsp, rbx // switch to new stack
+        mov gs:[{ustack_off}], rsp    // save the userspace stack into ustack
+        mov rsp, gs:[{kstack_off}]    // load the kernel stack
 
         // === FROM NOW ON WE ARE ON KERNEL STACK ===
 
-        // We push args to new stack
-        push rax // sycall number
-        push rdi // arg0
-        push rsi // arg1
-        push rdx // arg2
-        push r10 // arg3
-
-        // Pop to follow normal sysv64 calling convention
-        pop r8
-        pop rcx
-        pop rdx
-        pop rsi
-        pop rdi
-
         /// AT THIS POINT THE KERNEL STACK SHOULD BE EMPTY (the following should be pushed at the base)
 
-        // Save callee-saved registers so that they can be used in forked_entry:
+        // Create a trapframe at the base of the stack
+        // This is used to return to userspace
+        push gs:[{ustack_off}] // trapframe[14]
         push rbx
+        push rcx
+        push rbp
+        push r11
         push r12
         push r13
         push r14
         push r15
-        push rbp
+        push r9
+        push r8
+        push r10
+        push rdx
+        push rsi
+        push rdi // trapframe[0]
 
-        call {}
+        mov rdi, rax // pass rax as first param
 
-        // No need to pop from the kernel stack, syscall_ret doesn't use it
-        jmp {}
+        call {handle_syscall_inner}
+
+        jmp {syscall_ret}
         ",
-        sym get_kernel_stack,
-        sym handle_syscall_inner,
-        sym syscall_ret
+        ustack_off = const(offset_of!(PerCpu, ustack)),
+        kstack_off = const(offset_of!(PerCpu, kstack)),
+        handle_syscall_inner = sym handle_syscall_inner,
+        syscall_ret = sym syscall_ret
     );
 }
 
-/// Handles returning to userspace (including switching to userspace stack using the callee-saved rbp register)
+/// Handles returning to userspace using a trapframe stored at base of stack
 #[unsafe(naked)]
 pub unsafe extern "sysv64" fn syscall_ret() {
     naked_asm!(
         "
-        mov rsp, rbp // Restore userspace stack
-        pop rbx
-        pop rbp
+        pop rdi
+        pop rsi
+        pop rdx
+        pop r10
+        pop r8
+        pop r9
+        pop r15
+        pop r14
+        pop r13
+        pop r12
         pop r11
+        pop rbp
         pop rcx
+        pop rbx
+
+        pop rsp
         sysretq
         "
     )

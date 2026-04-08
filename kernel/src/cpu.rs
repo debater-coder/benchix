@@ -1,5 +1,3 @@
-use core::cell::UnsafeCell;
-
 use alloc::borrow::ToOwned;
 use alloc::boxed::Box;
 use alloc::sync::Arc;
@@ -10,9 +8,9 @@ use x86_64::instructions::segmentation::Segment;
 use x86_64::instructions::segmentation::{CS, DS, ES, FS, GS, SS};
 use x86_64::instructions::tables::load_tss;
 use x86_64::registers::control::{Efer, EferFlags};
-use x86_64::registers::model_specific::{LStar, SFMask, Star};
+use x86_64::registers::model_specific::{GsBase, LStar, SFMask, Star};
 use x86_64::registers::rflags::RFlags;
-use x86_64::structures::gdt::{Descriptor, GlobalDescriptorTable};
+use x86_64::structures::gdt::{Descriptor, GlobalDescriptorTable, SegmentSelector};
 use x86_64::structures::tss::TaskStateSegment;
 
 use crate::scheduler::Thread;
@@ -21,11 +19,17 @@ use crate::user::syscalls::handle_syscall;
 pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
 
 /// Per-CPU data
-/// In future, each process will have its own kernel stack
 /// For simplicity, we handle interrupts on the kernel stack of the current stack
 /// The linux kernel has a separate stack for this to save stack space.
 /// That's why we keep the TSS in an UnsafeCell, so we can update the interrupt handling stack.
 pub struct PerCpu {
+    /// Kernel stack to switch to on syscall.
+    /// This is duplicated in this struct to make it easier
+    /// to access from the syscall handler.
+    /// 0 if in dummy context.
+    pub kstack: u64,
+    pub ustack: u64,
+    /// Scratch space to store user stack during syscall
     pub gdt: GlobalDescriptorTable,
     tss: &'static mut TaskStateSegment,
     pub current_thread: Option<Arc<Mutex<Thread>>>,
@@ -34,8 +38,8 @@ pub struct PerCpu {
 }
 
 impl PerCpu {
-    /// Initialises a CPU
-    pub unsafe fn init_cpu() -> Self {
+    /// Initialises a CPU, setting the GS base register to point to the per-cpu struct
+    pub unsafe fn init_cpu() {
         let tss = Box::leak(Box::new(TaskStateSegment::new()));
         tss.interrupt_stack_table[DOUBLE_FAULT_IST_INDEX as usize] = {
             const STACK_SIZE: usize = 4096 * 5;
@@ -51,7 +55,7 @@ impl PerCpu {
         // Setting up gdt
         let gdt = GlobalDescriptorTable::new();
 
-        PerCpu {
+        let cpu = Box::new(PerCpu {
             gdt,
             tss,
             current_thread: None,
@@ -62,11 +66,36 @@ impl PerCpu {
                 Some("idle".to_owned()),
                 None,
             ))),
+            kstack: 0,
+            ustack: 0,
+        });
+
+        let cpu = Box::leak(cpu);
+
+        // Since GS base register is per-cpu, this will be unique to this CPU
+        let gs_base = VirtAddr::from_ptr(cpu);
+
+        unsafe {
+            cpu.init_gdt();
+        }
+
+        GsBase::write(gs_base);
+    }
+
+    /// # Safety
+    ///
+    /// The GS segment base must point to a PerCpu struct as set up by
+    /// PerCpu::init_cpu
+    pub unsafe fn get_cpu() -> &'static mut Self {
+        unsafe {
+            let read = GsBase::read();
+            &mut *read.as_mut_ptr()
         }
     }
 
-    pub unsafe fn set_ist(&mut self, top: VirtAddr) {
+    pub unsafe fn set_kstack(&mut self, top: VirtAddr) {
         self.tss.privilege_stack_table[0] = top;
+        self.kstack = top.as_u64();
     }
 
     pub unsafe fn init_gdt(&'static mut self) {
@@ -85,8 +114,8 @@ impl PerCpu {
 
             DS::set_reg(data_selector);
             ES::set_reg(data_selector);
-            FS::set_reg(data_selector);
-            GS::set_reg(data_selector);
+            FS::set_reg(SegmentSelector::NULL);
+            GS::set_reg(SegmentSelector::NULL);
             SS::set_reg(data_selector);
 
             // Prepare for usermode
@@ -103,28 +132,6 @@ impl PerCpu {
         SFMask::write(RFlags::INTERRUPT_FLAG);
     }
 }
-
-/// A Send + Sync structure storing all the per CPU data. We ensure CPUs can only access their own data, preventing data races.
-/// Eventually this will have an array indexed by LAPIC ID.
-/// TODO: make a `WithoutInterruptsCell`
-pub struct Cpus {
-    cpu: UnsafeCell<PerCpu>, // Only have one CPU right now
-}
-
-impl Cpus {
-    pub fn new(current_cpu: PerCpu) -> Self {
-        Cpus {
-            cpu: UnsafeCell::new(current_cpu),
-        }
-    }
-
-    pub fn get_cpu(&self) -> &mut PerCpu {
-        unsafe { self.cpu.get().as_mut().unwrap() }
-    }
-}
-
-unsafe impl Send for Cpus {}
-unsafe impl Sync for Cpus {}
 
 extern "sysv64" fn idle() {
     loop {

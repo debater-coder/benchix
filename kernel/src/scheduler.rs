@@ -13,7 +13,7 @@ use x86_64::{
     structures::paging::PhysFrame,
 };
 
-use crate::CPUS;
+use crate::cpu::PerCpu;
 
 /// DANGER LOCK: DISABLE INTERRUPTS BEFORE USE!!!
 static READY: OnceCell<Mutex<VecDeque<Arc<Mutex<Thread>>>>> = OnceCell::uninit();
@@ -87,14 +87,23 @@ impl Thread {
     }
 
     pub fn set_func(&mut self, func: unsafe extern "sysv64" fn()) {
-        // Put the return address on the top of the stack
-        *self.kstack.last_mut().unwrap() = func as u64;
+        // Put the return address just below the trapframe
+        // We do this to avoid this address
+        *self.kstack.iter_mut().nth_back(15).unwrap() = func as u64;
 
-        self.context.rsp = self.kstack.last_mut().unwrap() as *const u64 as u64;
+        self.context.rsp = self.kstack.iter().nth_back(15).unwrap() as *const u64 as u64;
     }
 
     pub fn kstack_addr(&self) -> VirtAddr {
         VirtAddr::from_ptr(self.kstack.as_ptr_range().end)
+    }
+
+    pub fn trapframe(&self) -> &[u64; 15] {
+        self.kstack.last_chunk::<15>().unwrap()
+    }
+
+    pub fn trapframe_mut(&mut self) -> &mut [u64; 15] {
+        self.kstack.last_chunk_mut::<15>().unwrap()
     }
 }
 
@@ -177,7 +186,7 @@ unsafe extern "sysv64" fn switch_to(_prev: &mut Context, _next: &Context) {
 
 /// Releases locks and sets current thread
 unsafe extern "sysv64" fn switch_finish_hook() {
-    let cpu = CPUS.get().unwrap().get_cpu();
+    let cpu = unsafe { PerCpu::get_cpu() };
     if let Some(thread) = cpu.current_thread.as_mut() {
         unsafe { thread.force_unlock() };
     }
@@ -188,7 +197,7 @@ unsafe extern "sysv64" fn switch_finish_hook() {
     // Set the stack used to handle interrupts when they occur in user mode.
     // When such an interrupt occurs the kernel will use our normal kernel stack
     // rather than the user-mode stack.
-    unsafe { cpu.set_ist(cpu.current_thread.clone().unwrap().lock().kstack_addr()) };
+    unsafe { cpu.set_kstack(cpu.current_thread.clone().unwrap().lock().kstack_addr()) };
 
     // Switch the page-table mappings
     if let Some(frame) = cpu.current_thread.clone().unwrap().lock().cr3_frame {
@@ -200,8 +209,8 @@ unsafe extern "sysv64" fn switch_finish_hook() {
 
 /// Yields to scheduler, but keep current thread in queue.
 pub fn yield_and_continue() {
-    if let Some(thread) = CPUS.get().unwrap().get_cpu().current_thread.as_ref() {
-        enqueue(thread.clone());
+    if let Some(thread) = unsafe { PerCpu::get_cpu() }.current_thread.as_ref() {
+        enqueue(Arc::clone(thread));
     }
     yield_execution();
 }
@@ -209,7 +218,7 @@ pub fn yield_and_continue() {
 /// Yields to scheduler to decide what should use CPU time.
 pub fn yield_execution() {
     without_interrupts(|| {
-        let cpu = CPUS.get().unwrap().get_cpu();
+        let cpu = unsafe { PerCpu::get_cpu() };
         let next_thread = {
             READY
                 .get()
@@ -236,7 +245,7 @@ pub fn yield_execution() {
 
         let next = { next_thread.lock().context.clone() }; // The lock will be released after this
 
-        CPUS.get().unwrap().get_cpu().next_thread = Some(next_thread.clone());
+        unsafe { PerCpu::get_cpu() }.next_thread = Some(next_thread.clone());
 
         unsafe {
             switch_to(prev, &next);

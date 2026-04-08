@@ -8,8 +8,8 @@ use spin::Mutex;
 use x86_64::instructions::interrupts::without_interrupts;
 
 use crate::{
-    CPUS,
     console::Console,
+    cpu::PerCpu,
     scheduler::{self, Thread},
 };
 
@@ -134,9 +134,7 @@ impl Filesystem for Devfs {
                 debug_println!("in keyboard lock");
                 without_interrupts(|| {
                     *WAITING_THREAD.lock() = Some(
-                        CPUS.get()
-                            .unwrap()
-                            .get_cpu()
+                        unsafe { PerCpu::get_cpu() }
                             .current_thread
                             .as_ref()
                             .unwrap()
