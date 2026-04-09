@@ -7,7 +7,7 @@ int main(int argc, char *argv[]) {
   open("/dev/console", O_WRONLY); // fd 1 -- stdout
   open("/dev/console", O_WRONLY); // fd 2 -- stderr
 
-  write(1, "hello\n", 6);
+  puts("hello from init compiled with musl libc\n");
 
   return -1;
 }

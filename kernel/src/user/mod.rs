@@ -224,6 +224,12 @@ impl UserProcess {
                     .allocate_frame()
                     .expect("Could not allocate frame.");
 
+                unsafe {
+                    (self.mapper.phys_offset() + frame.start_address().as_u64())
+                        .as_mut_ptr::<u8>()
+                        .write_bytes(0, 0x1000)
+                };
+
                 // The start index in the DESTINATION FRAME
                 let start_index = header
                     .virtual_address
@@ -236,8 +242,8 @@ impl UserProcess {
                     start_index
                 );
 
-                let src =
-                    &contents[bytes_copied..(0x1000 - start_index as usize).min(contents.len())];
+                let src = &contents[bytes_copied
+                    ..(bytes_copied + 0x1000 - start_index as usize).min(contents.len())];
 
                 bytes_copied += src.len();
 
