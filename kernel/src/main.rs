@@ -97,7 +97,7 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
 
     unsafe { PerCpu::init_cpu() };
 
-    let mut console = Console::new(framebuffer);
+    let mut console = Console::new(framebuffer, &mut mapper);
     early_log!(&mut console, "Console initialised.");
 
     early_log!(&mut console, "Parsing ACPI tables...");

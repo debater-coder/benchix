@@ -59,7 +59,7 @@ fn init_page_table(physical_offset: u64) -> OffsetPageTable<'static> {
     let l4_page_table_addr = physical_offset + l4_page_table_phys.start_address().as_u64();
     let l4_page_table = l4_page_table_addr.as_mut_ptr();
 
-    unsafe { OffsetPageTable::new(&mut *l4_page_table, physical_offset) }
+    unsafe { OffsetPageTable::from_phys_offset(&mut *l4_page_table, physical_offset) }
 }
 
 #[derive(Debug)]

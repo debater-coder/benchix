@@ -7,7 +7,7 @@ int main(int argc, char *argv[]) {
   open("/dev/console", O_WRONLY); // fd 1 -- stdout
   open("/dev/console", O_WRONLY); // fd 2 -- stderr
 
-  for (int i = 0; i < 20; i++) {
+  for (int i = 0; i < 100; i++) {
     printf("Hello, world! %d\n", i);
   }
 

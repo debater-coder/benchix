@@ -3,7 +3,15 @@ use alloc::vec::Vec;
 use bootloader_api::info::{FrameBuffer, FrameBufferInfo};
 use core::fmt;
 use noto_sans_mono_bitmap::{FontWeight, RasterHeight, get_raster, get_raster_width};
-use x86_64::instructions::port::Port;
+use x86_64::{
+    VirtAddr,
+    instructions::port::Port,
+    structures::paging::{
+        Mapper, OffsetPageTable, Page, PageTableFlags, Size4KiB, Translate, mapper::TranslateResult,
+    },
+};
+
+use crate::debug_println;
 
 const SIZE: RasterHeight = RasterHeight::Size32;
 
@@ -11,6 +19,36 @@ const SIZE: RasterHeight = RasterHeight::Size32;
 struct Framebuffer {
     framebuffer_info: FrameBufferInfo,
     raw_framebuffer: &'static mut [u8],
+}
+
+impl Framebuffer {
+    fn set_write_combining(&mut self, mapper: &mut OffsetPageTable) {
+        let base = VirtAddr::from_ptr(self.raw_framebuffer);
+        for page in Page::range(
+            Page::<Size4KiB>::containing_address(base),
+            Page::containing_address(base + self.framebuffer_info.byte_len as u64),
+        ) {
+            let translate = mapper.translate(page.start_address());
+            let TranslateResult::Mapped {
+                frame: _,
+                offset: _,
+                mut flags,
+            } = translate
+            else {
+                panic!("expected framebuffer to be mapped, {:?}", translate);
+            };
+
+            // This selects PAT entry 0b101 = 5, which is set to
+            // WriteCombining in PerCpu
+            flags.set(PageTableFlags::PAT_4KIB_PAGE, true); // PAT = 1
+            flags.set(PageTableFlags::NO_CACHE, false); // PCD = 0
+            flags.set(PageTableFlags::WRITE_THROUGH, true); // PWT = 1
+
+            unsafe {
+                mapper.update_flags(page, flags).unwrap().flush();
+            };
+        }
+    }
 }
 
 pub struct Console {
@@ -24,11 +62,14 @@ pub struct Console {
 }
 
 impl Console {
-    pub fn new(framebuffer: &'static mut FrameBuffer) -> Self {
-        let framebuffer = Framebuffer {
+    pub fn new(framebuffer: &'static mut FrameBuffer, mapper: &mut OffsetPageTable) -> Self {
+        let mut framebuffer = Framebuffer {
             framebuffer_info: framebuffer.info().clone(),
             raw_framebuffer: framebuffer.buffer_mut(),
         };
+
+        framebuffer.set_write_combining(mapper);
+
         let (width, height) = (
             framebuffer.framebuffer_info.width,
             framebuffer.framebuffer_info.height,
@@ -44,6 +85,7 @@ impl Console {
             col: 0,
         };
         console.full_redraw();
+
         console
     }
 

@@ -8,7 +8,7 @@ use x86_64::instructions::segmentation::Segment;
 use x86_64::instructions::segmentation::{CS, DS, ES, FS, GS, SS};
 use x86_64::instructions::tables::load_tss;
 use x86_64::registers::control::{Efer, EferFlags};
-use x86_64::registers::model_specific::{GsBase, LStar, SFMask, Star};
+use x86_64::registers::model_specific::{GsBase, LStar, Pat, PatMemoryType, SFMask, Star};
 use x86_64::registers::rflags::RFlags;
 use x86_64::structures::gdt::{Descriptor, GlobalDescriptorTable, SegmentSelector};
 use x86_64::structures::tss::TaskStateSegment;
@@ -79,7 +79,21 @@ impl PerCpu {
             cpu.init_gdt();
         }
 
-        GsBase::write(gs_base);
+        unsafe { GsBase::write(gs_base) };
+
+        // Setup PAT
+        unsafe {
+            Pat::write([
+                PatMemoryType::WriteBack,
+                PatMemoryType::WriteThrough,
+                PatMemoryType::Uncacheable,
+                PatMemoryType::StrongUncacheable,
+                PatMemoryType::WriteProtected, // 0b100
+                PatMemoryType::WriteCombining, // 0b101
+                PatMemoryType::Uncacheable,
+                PatMemoryType::StrongUncacheable,
+            ])
+        };
     }
 
     /// # Safety

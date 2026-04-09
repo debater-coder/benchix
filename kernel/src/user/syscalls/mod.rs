@@ -232,7 +232,7 @@ fn arch_prctl(op: u32, addr: u64) -> u64 {
             };
 
             get_current_thread().lock().fs_base = addr;
-            FsBase::write(addr);
+            unsafe { FsBase::write(addr) };
             0
         }
         _ => -EINVAL as u64,

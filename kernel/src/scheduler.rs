@@ -214,7 +214,7 @@ unsafe extern "sysv64" fn switch_finish_hook() {
             }
         }
 
-        FsBase::write(thread.fs_base);
+        unsafe { FsBase::write(thread.fs_base) };
     }
 }
 

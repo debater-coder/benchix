@@ -415,7 +415,7 @@ impl UserProcess {
     pub unsafe fn unmap_page(&mut self, page: Page) {
         let mut pmm = PMM.get().unwrap().lock();
 
-        let (frame, flush) = self.mapper.unmap(page).unwrap();
+        let (frame, _, flush) = self.mapper.unmap(page).unwrap();
         flush.flush();
 
         // We must remove the frame from the vectors to avoid a double free:
@@ -513,7 +513,8 @@ impl UserProcess {
     /// and forking the thread. Returns the child PID.
     pub fn fork(&self) -> u32 {
         let (l4_table, frames, frame) = self.fork_page_table(self.mapper.level_4_table(), 4);
-        let mapper = unsafe { OffsetPageTable::new(l4_table, self.mapper.phys_offset()) };
+        let mapper =
+            unsafe { OffsetPageTable::from_phys_offset(l4_table, self.mapper.phys_offset()) };
 
         let child = UserProcess {
             files: self.files.clone(),
