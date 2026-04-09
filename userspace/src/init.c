@@ -7,7 +7,9 @@ int main(int argc, char *argv[]) {
   open("/dev/console", O_WRONLY); // fd 1 -- stdout
   open("/dev/console", O_WRONLY); // fd 2 -- stderr
 
-  puts("hello from init compiled with musl libc\n");
+  for (int i = 0; i < 20; i++) {
+    printf("Hello, world! %d\n", i);
+  }
 
   return -1;
 }

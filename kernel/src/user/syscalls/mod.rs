@@ -55,7 +55,7 @@ fn get_current_process() -> Arc<Mutex<UserProcess>> {
 /// Returns true if an address is in userspace
 /// Since this is a higher half kernel, userspace bits will be in the lower half.
 fn check_addr(addr: VirtAddr) -> bool {
-    addr.as_u64() & (1 << 63) == 0
+    !addr.is_null() && addr.as_u64() & (1 << 63) == 0
 }
 
 /// Returns true if a buffer is in userspace
@@ -63,15 +63,52 @@ fn check_buffer(buffer: &[u8]) -> bool {
     let buffer_start = buffer.as_ptr();
     let buffer_end = unsafe { buffer_start.byte_add(buffer.len()) };
 
-    check_addr(VirtAddr::from_ptr(buffer_start)) && check_addr(VirtAddr::from_ptr(buffer_end))
+    check_addr(VirtAddr::from_ptr(buffer_start))
+        && check_addr(VirtAddr::from_ptr(buffer_end))
+        && buffer_start <= buffer_end // To prevent buffers from wrapping around
+}
+
+fn checked_slice_from_raw_parts<'a, T>(data: *const T, len: usize) -> Option<&'a [T]> {
+    let base = VirtAddr::from_ptr(data);
+    let ptr_len = len.checked_mul(size_of::<T>());
+    let end = ptr_len.and_then(|ptr_len| Some(base + (ptr_len as u64)));
+
+    if check_addr(base)
+        && (if let Some(end) = end {
+            check_addr(end) && (base <= end)
+        } else {
+            false
+        })
+    {
+        Some(unsafe { slice::from_raw_parts(data, len) })
+    } else {
+        None
+    }
+}
+
+fn checked_slice_from_raw_parts_mut<'a, T>(data: *mut T, len: usize) -> Option<&'a mut [T]> {
+    let base = VirtAddr::from_ptr(data);
+    let ptr_len = len.checked_mul(size_of::<T>());
+    let end = ptr_len.and_then(|len| Some(base + len as u64));
+
+    if check_addr(base)
+        && (if let Some(end) = end {
+            check_addr(end) && base <= end
+        } else {
+            false
+        })
+    {
+        Some(unsafe { slice::from_raw_parts_mut(data, len) })
+    } else {
+        None
+    }
 }
 
 fn read(fd: u32, buf: *mut u8, count: usize) -> usize {
     debug_println!("read({}, {:?}, {})", fd, buf, count);
-    let buf = unsafe { slice::from_raw_parts_mut(buf, count) };
-    if !check_buffer(buf) {
+    let Some(buf) = checked_slice_from_raw_parts_mut(buf, count) else {
         return -EFAULT as usize;
-    }
+    };
 
     let process = get_current_process();
     let process = process.lock();
@@ -100,10 +137,13 @@ fn read(fd: u32, buf: *mut u8, count: usize) -> usize {
 fn write(fd: u32, buf: *mut u8, count: usize) -> usize {
     debug_println!("write({}, {:?}, {})", fd, buf, count);
 
-    let buf = unsafe { slice::from_raw_parts_mut(buf, count) };
-    if !check_buffer(buf) {
-        return -EFAULT as usize;
+    if count == 0 {
+        return 0;
     }
+
+    let Some(buf) = checked_slice_from_raw_parts(buf, count) else {
+        return -EFAULT as usize;
+    };
 
     debug_println!("waiting on process lock");
     let process = get_current_process();
@@ -308,6 +348,54 @@ fn ioctl() -> u64 {
     -ENOTTY as u64
 }
 
+#[repr(C)]
+struct Iovec {
+    io_base: *mut u8,
+    io_len: usize,
+}
+
+fn writev(fd: u32, iov: *mut Iovec, iovcnt: usize) -> usize {
+    debug_println!("writev({}, 0x{:x}, {})", fd, iov as u64, iovcnt);
+
+    let base = VirtAddr::from_ptr(iov);
+    let len = (iovcnt as isize).checked_mul(size_of::<Iovec>() as isize);
+    let end = len.and_then(|len| Some(VirtAddr::from_ptr(iov) + len as u64));
+
+    if !(check_addr(base)
+        && (if let Some(end) = end {
+            check_addr(end) && base <= end
+        } else {
+            false
+        }))
+    {
+        return -EFAULT as usize;
+    }
+
+    let iov = unsafe { slice::from_raw_parts(iov, iovcnt) };
+
+    if iov
+        .iter()
+        .map(|entry| entry.io_len)
+        .try_reduce(|x, y| x.checked_add(y))
+        .is_none()
+    {
+        return -EINVAL as usize;
+    }
+
+    let mut bytes_written = 0;
+
+    for io_entry in iov {
+        let written = write(fd, io_entry.io_base, io_entry.io_len) as isize;
+        if written >= 0 {
+            bytes_written += written;
+        } else {
+            return written as usize;
+        }
+    }
+
+    bytes_written as usize
+}
+
 pub extern "sysv64" fn handle_syscall_inner(syscall_number: u64) -> u64 {
     let (arg0, arg1, arg2, arg3) = {
         let current_thread = get_current_thread();
@@ -323,17 +411,18 @@ pub extern "sysv64" fn handle_syscall_inner(syscall_number: u64) -> u64 {
         3 => close(arg0 as u32),
         12 => brk(arg0),
         16 => ioctl(),
-        158 => arch_prctl(arg0 as u32, arg1),
-        231 => exit(arg0 as i32), // exit_group
+        20 => writev(arg0 as u32, arg1 as usize as *mut _, arg2 as usize) as u64,
         57 => fork() as u64,
         59 => execve(
             arg0 as usize as *const _,
             arg1 as usize as *const _,
             arg2 as usize as *const _,
         ),
-        247 => waitid(arg0 as u32, arg1 as u32),
-        218 => set_tid_address() as u64,
         60 => exit(arg0 as i32),
+        158 => arch_prctl(arg0 as u32, arg1),
+        218 => set_tid_address() as u64,
+        231 => exit(arg0 as i32), // exit_group
+        247 => waitid(arg0 as u32, arg1 as u32),
         _ => {
             debug_println!(
                 "Unknown syscall {}: ({}, {}, {}, {})",
