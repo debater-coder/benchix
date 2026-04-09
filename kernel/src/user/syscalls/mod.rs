@@ -166,6 +166,7 @@ fn close(fd: u32) -> u64 {
 }
 
 fn exit(status: i32) -> ! {
+    debug_println!("exit({})", status);
     let process = get_current_process();
 
     process.lock().status = ProcessStatus::Terminated;
@@ -190,6 +191,7 @@ fn arch_prctl(op: u32, addr: u64) -> u64 {
                 return -EFAULT as u64;
             };
 
+            get_current_thread().lock().fs_base = addr;
             FsBase::write(addr);
             0
         }
@@ -294,6 +296,18 @@ fn waitid(id_type: u32, id: u32) -> u64 {
     }
 }
 
+/// Stub implementation for set_tid_address
+fn set_tid_address() -> u32 {
+    debug_println!("set_tid_address()");
+    get_current_process().lock().pid
+}
+
+/// ioctl stub
+fn ioctl() -> u64 {
+    debug_println!("ioctl()");
+    -ENOTTY as u64
+}
+
 pub extern "sysv64" fn handle_syscall_inner(syscall_number: u64) -> u64 {
     let (arg0, arg1, arg2, arg3) = {
         let current_thread = get_current_thread();
@@ -308,7 +322,7 @@ pub extern "sysv64" fn handle_syscall_inner(syscall_number: u64) -> u64 {
         2 => open(arg0 as usize as *const _, arg1 as u32),
         3 => close(arg0 as u32),
         12 => brk(arg0),
-        16 => -ENOTTY as u64, // ioctl
+        16 => ioctl(),
         158 => arch_prctl(arg0 as u32, arg1),
         231 => exit(arg0 as i32), // exit_group
         57 => fork() as u64,
@@ -318,6 +332,7 @@ pub extern "sysv64" fn handle_syscall_inner(syscall_number: u64) -> u64 {
             arg2 as usize as *const _,
         ),
         247 => waitid(arg0 as u32, arg1 as u32),
+        218 => set_tid_address() as u64,
         60 => exit(arg0 as i32),
         _ => {
             debug_println!(

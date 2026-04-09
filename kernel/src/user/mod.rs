@@ -214,6 +214,8 @@ impl UserProcess {
                 Page::containing_address(VirtAddr::new(header.virtual_address + header.mem_size)),
             );
 
+            let mut bytes_copied = 0;
+
             for page in page_range {
                 let frame = PMM
                     .get()
@@ -222,23 +224,34 @@ impl UserProcess {
                     .allocate_frame()
                     .expect("Could not allocate frame.");
 
-                let start_index = page
-                    .start_address()
-                    .as_u64()
-                    .saturating_sub(VirtAddr::from_ptr(contents.as_ptr()).as_u64())
-                    as usize;
-                let src = &contents[start_index..(start_index + 0x1000).min(contents.len())];
+                // The start index in the DESTINATION FRAME
+                let start_index = header
+                    .virtual_address
+                    .saturating_sub(page.start_address().as_u64());
+
+                debug_println!(
+                    "{:x} - {:x} = start index {:x}",
+                    header.virtual_address,
+                    page.start_address(),
+                    start_index
+                );
+
+                let src =
+                    &contents[bytes_copied..(0x1000 - start_index as usize).min(contents.len())];
+
+                bytes_copied += src.len();
+
+                debug_println!("mapping {:?} to {:?}, len: {:?}", page, frame, src.len());
 
                 let dst = unsafe {
                     slice::from_raw_parts_mut(
-                        (self.mapper.phys_offset() + frame.start_address().as_u64()).as_mut_ptr(),
+                        (self.mapper.phys_offset() + frame.start_address().as_u64() + start_index)
+                            .as_mut_ptr(),
                         src.len(),
                     )
                 };
 
                 dst.copy_from_slice(src);
-
-                debug_println!("mapping {:?} to {:?}, len: {:?}", page, frame, src.len());
 
                 // Create mappings
                 // This looks like it leaks memory since map_to() can map frames when creating page tables.

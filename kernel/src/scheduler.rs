@@ -9,7 +9,9 @@ use alloc::{
 use conquer_once::spin::OnceCell;
 use spin::Mutex;
 use x86_64::{
-    VirtAddr, instructions::interrupts::without_interrupts, registers::control::Cr3,
+    VirtAddr,
+    instructions::interrupts::without_interrupts,
+    registers::{control::Cr3, model_specific::FsBase},
     structures::paging::PhysFrame,
 };
 
@@ -54,6 +56,7 @@ pub struct Thread {
     pub tid: u32,
     pub name: Option<String>,
     pub cr3_frame: Option<PhysFrame>,
+    pub fs_base: VirtAddr,
 }
 
 impl core::fmt::Debug for Thread {
@@ -80,6 +83,7 @@ impl Thread {
             tid: NEXT_TID.fetch_add(1, Ordering::Relaxed),
             name,
             cr3_frame,
+            fs_base: VirtAddr::zero(),
         };
 
         thread.set_func(func);
@@ -194,16 +198,23 @@ unsafe extern "sysv64" fn switch_finish_hook() {
     cpu.current_thread = cpu.next_thread.clone();
     cpu.next_thread = None;
 
-    // Set the stack used to handle interrupts when they occur in user mode.
-    // When such an interrupt occurs the kernel will use our normal kernel stack
-    // rather than the user-mode stack.
-    unsafe { cpu.set_kstack(cpu.current_thread.clone().unwrap().lock().kstack_addr()) };
+    {
+        let thread = cpu.current_thread.clone().unwrap();
+        let thread = thread.lock();
 
-    // Switch the page-table mappings
-    if let Some(frame) = cpu.current_thread.clone().unwrap().lock().cr3_frame {
-        unsafe {
-            Cr3::write(frame, Cr3::read().1);
+        // Set the stack used to handle interrupts when they occur in user mode.
+        // When such an interrupt occurs the kernel will use our normal kernel stack
+        // rather than the user-mode stack.
+        unsafe { cpu.set_kstack(thread.kstack_addr()) };
+
+        // Switch the page-table mappings
+        if let Some(frame) = thread.cr3_frame {
+            unsafe {
+                Cr3::write(frame, Cr3::read().1);
+            }
         }
+
+        FsBase::write(thread.fs_base);
     }
 }
 
