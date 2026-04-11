@@ -77,3 +77,8 @@ pub const P_ALL: u32 = 0;
 pub const P_PID: u32 = 1;
 pub const P_PGID: u32 = 2;
 pub const P_PIDFD: u32 = 3;
+
+// include/uapi/asm-generic/mman-common.h
+pub const MAP_TYPE: u32 = 0x0f; /* Mask for type of mapping */
+pub const MAP_FIXED: u32 = 0x10; /* Interpret addr exactly */
+pub const MAP_ANONYMOUS: u32 = 0x20; /* don't use a file */

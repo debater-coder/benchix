@@ -11,6 +11,7 @@ use spin::RwLock;
 use spin::mutex::Mutex;
 use syscalls::syscall_ret;
 use x86_64::registers::control::Cr3;
+use x86_64::structures::paging::mapper::{MapToError, UnmapError};
 use x86_64::structures::paging::{FrameDeallocator, PageTable, PhysFrame};
 use x86_64::{
     VirtAddr,
@@ -95,6 +96,7 @@ pub struct UserProcess {
     frames: Vec<PhysFrame>,
     pub brk: VirtAddr,
     pub brk_initial: VirtAddr,
+    pub mmap_base: VirtAddr, // mmap pages grow down from here
     pub cr3_frame: PhysFrame,
     pub status: ProcessStatus,
     /// Queue of threads waiting for termination
@@ -125,6 +127,7 @@ impl UserProcess {
             cr3_frame: Cr3::read().0,
             status: ProcessStatus::Running,
             waiting: vec![],
+            mmap_base: VirtAddr::new(0x7f00_0000_0000),
         };
 
         thread.lock().process = Some(process.pid);
@@ -312,11 +315,14 @@ impl UserProcess {
 
         // Alloc page for info
         unsafe {
-            self.allocate_user_page(
+            self.allocate_page(
                 Page::<Size4KiB>::from_start_address(stack_top)
                     .expect("stack top to be page-aligned"),
-                PageTableFlags::NO_EXECUTE,
-            );
+                PageTableFlags::NO_EXECUTE
+                    | PageTableFlags::USER_ACCESSIBLE
+                    | PageTableFlags::WRITABLE,
+            )
+            .unwrap();
         }
 
         let argc = args.len() as u64;
@@ -374,7 +380,13 @@ impl UserProcess {
 
         unsafe {
             for page in stack_range {
-                self.allocate_user_page(page, PageTableFlags::NO_EXECUTE);
+                self.allocate_page(
+                    page,
+                    PageTableFlags::NO_EXECUTE
+                        | PageTableFlags::USER_ACCESSIBLE
+                        | PageTableFlags::WRITABLE,
+                )
+                .unwrap();
             }
         }
 
@@ -390,32 +402,37 @@ impl UserProcess {
         Ok(())
     }
 
-    /// Allocates a user accessible page to a new frame.
-    pub unsafe fn allocate_user_page(&mut self, page: Page, flags: PageTableFlags) {
+    /// Allocates a page to a new frame.
+    pub unsafe fn allocate_page(
+        &mut self,
+        page: Page,
+        flags: PageTableFlags,
+    ) -> Result<(), MapToError<Size4KiB>> {
         let mut pmm = PMM.get().unwrap().lock();
-        let frame = pmm.allocate_frame().expect("Could not allocate frame");
+        let frame = pmm
+            .allocate_frame()
+            .ok_or(MapToError::FrameAllocationFailed)?;
+
+        unsafe {
+            (self.mapper.phys_offset() + frame.start_address().as_u64())
+                .as_mut_ptr::<u8>()
+                .write_bytes(0, 0x1000)
+        };
 
         unsafe {
             self.mapper
-                .map_to(
-                    page,
-                    frame,
-                    PageTableFlags::PRESENT
-                        | PageTableFlags::WRITABLE
-                        | PageTableFlags::USER_ACCESSIBLE
-                        | flags,
-                    &mut *pmm,
-                )
-                .unwrap()
+                .map_to(page, frame, PageTableFlags::PRESENT | flags, &mut *pmm)?
                 .flush()
         };
-        self.frames.push(frame)
+        self.frames.push(frame);
+
+        Ok(())
     }
 
-    pub unsafe fn unmap_page(&mut self, page: Page) {
+    pub unsafe fn unmap_page(&mut self, page: Page) -> Result<(), UnmapError> {
         let mut pmm = PMM.get().unwrap().lock();
 
-        let (frame, _, flush) = self.mapper.unmap(page).unwrap();
+        let (frame, _, flush) = self.mapper.unmap(page)?;
         flush.flush();
 
         // We must remove the frame from the vectors to avoid a double free:
@@ -426,6 +443,8 @@ impl UserProcess {
         unsafe {
             pmm.deallocate_frame(frame);
         }
+
+        Ok(())
     }
 
     fn fork_page_table(
@@ -530,6 +549,7 @@ impl UserProcess {
             ))),
             frames,
             mapper,
+            mmap_base: self.mmap_base,
             cr3_frame: frame,
             status: ProcessStatus::Running,
             waiting: vec![],
