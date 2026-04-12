@@ -51,7 +51,7 @@ pub unsafe fn init(
     (mapper, pmm)
 }
 
-fn init_page_table(physical_offset: u64) -> OffsetPageTable<'static> {
+pub fn init_page_table(physical_offset: u64) -> OffsetPageTable<'static> {
     let physical_offset = VirtAddr::new(physical_offset);
 
     let (l4_page_table_phys, _) = Cr3::read();

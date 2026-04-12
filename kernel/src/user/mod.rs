@@ -19,14 +19,13 @@ use x86_64::{
 };
 
 use crate::PMM;
+use crate::elf::{Elf, ElfError};
 use crate::scheduler::Thread;
 use crate::{debug_println, filesystem::vfs::Inode};
-use elf::{LoadingError, ProgramHeaderEntry};
 
 #[allow(dead_code)]
 pub mod constants;
 
-mod elf;
 pub mod syscalls;
 
 static NEXT_PID: AtomicU32 = AtomicU32::new(1);
@@ -149,29 +148,11 @@ impl UserProcess {
         binary: &[u8],
         args: Vec<&str>,
         _env: Vec<&str>, // TODO
-    ) -> Result<(), LoadingError> {
-        // Validate ELF header
-        if binary[0x0..0x4] != *b"\x7fELF" // Magic
-            || binary[0x4] != 2 // 64-bit
-            || binary[0x5] != 1 // Little endian
-            || binary[0x10] != 2
-        // Executable file
-        {
-            debug_println!("{:?}", &binary[0x0..=0x10]);
-            return Err(LoadingError::InvalidHeader);
-        }
-        let header_start = u64::from_ne_bytes(binary[0x20..0x28].try_into().unwrap()) as usize;
-        let header_size = u16::from_ne_bytes(binary[0x36..0x38].try_into().unwrap()) as usize;
-        let header_num = u16::from_ne_bytes(binary[0x38..0x3A].try_into().unwrap()) as usize;
-        debug_println!(
-            "Headers: start: {:x} size: {:x} num: {}",
-            header_start,
-            header_size,
-            header_num
-        );
+    ) -> Result<(), ElfError> {
+        let elf = Elf::new(binary)?;
 
-        if header_size < size_of::<ProgramHeaderEntry>() {
-            return Err(LoadingError::InvalidHeader);
+        if !elf.executable {
+            return Err(ElfError::InvalidHeader);
         }
 
         // Clear previous userspace mappings (the entire lower half of the kernel)
@@ -179,17 +160,8 @@ impl UserProcess {
             entry.set_unused();
         }
 
-        // Read program headers
-        let headers: Vec<&ProgramHeaderEntry> = (0..header_num)
-            .map(|i| header_start + header_size * i)
-            .map(|offset| unsafe {
-                &*(binary[offset..(offset + size_of::<ProgramHeaderEntry>())].as_ptr()
-                    as *const ProgramHeaderEntry)
-            })
-            .collect();
-
         // Load program segments
-        for header in &headers {
+        for header in elf.program_headers()? {
             let segment_type = header.segment_type as u32;
             let segment_flags = (header.segment_type >> 32) as u32;
 
@@ -300,8 +272,8 @@ impl UserProcess {
         debug_println!("Mappings have been created.");
 
         // Set the program break to the end of the highest segment
-        self.brk_initial = headers
-            .iter()
+        self.brk_initial = elf
+            .program_headers()?
             .map(|header| VirtAddr::new(header.virtual_address) + header.mem_size)
             .max()
             .unwrap_or(VirtAddr::new(0));

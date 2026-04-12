@@ -243,6 +243,7 @@ dependencies = [
  "linked_list_allocator",
  "noto-sans-mono-bitmap",
  "pc-keyboard",
+ "rustc-demangle",
  "spin",
  "x86_64",
 ]
@@ -371,6 +372,12 @@ name = "radium"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dc33ff2d4973d518d823d61aa239014831e521c75da58e3df4840d3f47749d09"
+
+[[package]]
+name = "rustc-demangle"
+version = "0.1.27"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b50b8869d9fc858ce7266cce0194bd74df58b9d0e3f6df3a9fc8eb470d95c09d"
 
 [[package]]
 name = "rustix"

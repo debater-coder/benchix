@@ -9,6 +9,8 @@
 #![no_main]
 extern crate alloc;
 
+use core::sync::atomic::Ordering;
+
 use acpi::{AcpiTables, PlatformInfo};
 use alloc::boxed::Box;
 use conquer_once::spin::OnceCell;
@@ -26,6 +28,7 @@ mod console;
 mod acpi_handler;
 mod apic;
 mod cpu;
+mod elf;
 mod filesystem;
 mod interrupts;
 mod memory;
@@ -35,6 +38,7 @@ mod scheduler;
 mod user;
 
 use crate::console::Console;
+use crate::elf::Elf;
 use alloc::{slice, vec};
 
 use bootloader_api::BootloaderConfig;
@@ -89,6 +93,11 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
         .physical_memory_offset
         .into_option()
         .expect("Expected recursive index");
+
+    crate::panic::PHYS_MEM_OFFSET.store(physical_offset, Ordering::SeqCst);
+    crate::panic::KERNEL_IMAGE_OFFSET.store(boot_info.kernel_image_offset, Ordering::SeqCst);
+    crate::panic::KERNEL_ADDR.store(boot_info.kernel_addr, Ordering::SeqCst);
+    crate::panic::KERNEL_LEN.store(boot_info.kernel_len, Ordering::SeqCst);
 
     // The mapper will create kernel memory mappings, which will be frozen from after first process creation.
     // These mappings will be inherited by all future processes.
