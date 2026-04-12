@@ -3,8 +3,10 @@ use std::env;
 fn main() {
     // read env variables that were set in build script
     let uefi_path = env!("UEFI_PATH");
+    let elf_path = env!("ELF_PATH");
 
     println!("UEFI Path s{:?}", uefi_path);
+    println!("Kernel ELF Path s{:?}", elf_path);
 
     let mut cmd = std::process::Command::new("qemu-system-x86_64");
     if let Some(x) = env::args().nth(1) {

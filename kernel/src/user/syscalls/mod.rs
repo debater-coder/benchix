@@ -8,14 +8,11 @@ use spin::{Mutex, RwLock};
 use x86_64::{
     VirtAddr,
     registers::model_specific::FsBase,
-    structures::paging::{
-        FrameAllocator, Mapper, Page, PageSize, PageTableFlags, Size4KiB,
-        mapper::{MapToError, UnmapError},
-    },
+    structures::paging::{Mapper, Page, PageSize, PageTableFlags, Size4KiB, mapper::MapToError},
 };
 
 use crate::{
-    PMM, VFS,
+    VFS,
     cpu::PerCpu,
     filesystem::vfs::Filesystem,
     kernel_log,

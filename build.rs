@@ -23,4 +23,5 @@ fn main() {
         .unwrap();
 
     println!("cargo:rustc-env=UEFI_PATH={}", uefi_path.display());
+    println!("cargo:rustc-env=ELF_PATH={}", kernel.display());
 }

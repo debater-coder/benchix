@@ -11,8 +11,6 @@ use x86_64::{
     },
 };
 
-use crate::debug_println;
-
 const SIZE: RasterHeight = RasterHeight::Size32;
 
 /// Internal struct used by console to store framebuffer
