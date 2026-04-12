@@ -53,8 +53,10 @@ impl Write for PanicConsole {
 
                     let raster =
                         get_raster(*byte as char, FontWeight::Regular, RasterHeight::Size32)
-                            .unwrap_or_else(|| loop {
-                                hlt()
+                            .unwrap_or_else(|| {
+                                loop {
+                                    hlt()
+                                }
                             })
                             .raster();
 
@@ -90,7 +92,12 @@ pub(crate) static mut PANIC_FRAMEBUFFER: Option<*mut FrameBuffer> = None;
 #[cfg(not(test))]
 #[panic_handler]
 pub(crate) fn panic(info: &PanicInfo) -> ! {
+    use x86_64::instructions::interrupts;
+
     debug_println!("panicked: {}", info);
+
+    interrupts::disable();
+
     if let Some(framebuffer) = unsafe { PANIC_FRAMEBUFFER } {
         let framebuffer = unsafe { &mut *framebuffer };
 
