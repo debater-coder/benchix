@@ -262,7 +262,7 @@ impl PanicWriter {
             if let Some(symbol) = closest_symbol {
                 writeln!(
                     self,
-                    "#{} [0x{:x}] <{:#}+{}>",
+                    "#{} [0x{:x}] <{:#}+0x{:x}>",
                     i,
                     frame.rip as u64,
                     rustc_demangle::demangle(symbol.name),
