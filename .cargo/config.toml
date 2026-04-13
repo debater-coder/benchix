@@ -6,5 +6,4 @@ bindeps = true
 [build]
 rustflags = [
     "-C", "force-frame-pointers=yes",
-    "-C", "opt-level=2",   # still optimize, but keep frame pointers
 ]

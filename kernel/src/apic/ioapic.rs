@@ -1,3 +1,5 @@
+use core::ptr::write_volatile;
+
 use crate::IOAPIC_START_VIRT;
 use crate::PMM;
 use x86_64::structures::paging::Mapper;
@@ -50,13 +52,13 @@ impl IoApic {
     }
 
     fn read(&mut self, offset: u8) -> u32 {
-        *self.ioregsel = offset as u32;
+        unsafe { write_volatile(self.ioregsel, offset as u32) };
         *self.iowin
     }
 
     fn write(&mut self, offset: u8, value: u32) {
-        *self.ioregsel = offset as u32;
-        *self.iowin = value;
+        unsafe { write_volatile(self.ioregsel, offset as u32) };
+        unsafe { write_volatile(self.iowin, value) };
     }
 
     pub(crate) fn new(

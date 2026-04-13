@@ -1,4 +1,4 @@
-use core::ptr::slice_from_raw_parts_mut;
+use core::ptr::{slice_from_raw_parts_mut, write_volatile};
 
 use x86_64::{
     PhysAddr, VirtAddr,
@@ -101,6 +101,6 @@ impl Lapic {
         self.mm_region[offset as usize / 4]
     }
     fn write(&mut self, offset: u64, val: u32) {
-        self.mm_region[offset as usize / 4] = val;
+        unsafe { write_volatile(&mut self.mm_region[offset as usize / 4], val) };
     }
 }
