@@ -16,20 +16,18 @@ use crate::{
     cpu::PerCpu,
     filesystem::vfs::Filesystem,
     kernel_log,
-    scheduler::{self, Thread, enqueue, yield_execution},
-    user::{
+    process::{
         FileDescriptor, ProcessStatus,
         constants::{
             EBADF, EFAULT, ENOMEM, ENOSYS, MAP_ANONYMOUS, MAP_FIXED, O_ACCMODE, O_RDONLY, O_RDWR,
             O_WRONLY, PROT_EXEC, PROT_READ, PROT_WRITE,
         },
     },
+    scheduler::{self, Thread, enqueue, yield_execution},
 };
 
-use super::{
-    ProcessTable, UserProcess,
-    constants::{ARCH_SET_FS, ECHILD, EINVAL, ENOTTY, P_PID},
-};
+use super::{Process, ProcessTable};
+use crate::process::constants::{ARCH_SET_FS, ECHILD, EINVAL, ENOTTY, P_PID};
 
 pub fn get_current_thread() -> Arc<Mutex<Thread>> {
     unsafe { PerCpu::get_cpu() }
@@ -42,7 +40,7 @@ pub fn get_current_thread() -> Arc<Mutex<Thread>> {
 /// Gets the current process (for syscalls)
 /// # Panics
 /// If there is no current process or the CPU struct isn't initialised
-fn get_current_process() -> Arc<Mutex<UserProcess>> {
+fn get_current_process() -> Arc<Mutex<Process>> {
     ProcessTable::get_by_pid(
         unsafe { PerCpu::get_cpu() }
             .current_thread

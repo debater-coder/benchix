@@ -1,10 +1,5 @@
-#![feature(
-    abi_x86_interrupt,
-    new_zeroed_alloc,
-    allocator_api,
-    never_type,
-    iterator_try_reduce
-)]
+#![warn(clippy::all, clippy::pedantic)]
+#![feature(abi_x86_interrupt, allocator_api, never_type, iterator_try_reduce)]
 #![no_std]
 #![no_main]
 extern crate alloc;
@@ -19,8 +14,8 @@ use filesystem::devfs::Devfs;
 use filesystem::ramdisk::Ramdisk;
 use filesystem::vfs::{Filesystem, VirtualFileSystem};
 use memory::PhysicalMemoryManager;
+use process::{Process, ProcessTable};
 use spin::mutex::Mutex;
-use user::{ProcessTable, UserProcess};
 use x86_64::VirtAddr;
 
 #[macro_use]
@@ -34,11 +29,11 @@ mod interrupts;
 mod memory;
 #[allow(dead_code, unused_imports)]
 mod panic;
+mod process;
 mod scheduler;
-mod user;
+mod syscalls;
 
 use crate::console::Console;
-use crate::elf::Elf;
 use alloc::{slice, vec};
 
 use bootloader_api::BootloaderConfig;
@@ -153,7 +148,7 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     kernel_log!("Creating init process...");
     ProcessTable::init();
 
-    let init_pid = UserProcess::create(mapper);
+    let init_pid = Process::create(mapper);
     kernel_log!("Init process created");
 
     let vfs = VFS.get().unwrap();

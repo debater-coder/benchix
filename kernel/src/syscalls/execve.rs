@@ -1,12 +1,11 @@
 use crate::{
     cpu::PerCpu,
     filesystem,
+    process::enter_userspace,
     scheduler::{enqueue, yield_execution},
-    user::{
-        enter_userspace,
-        syscalls::{check_addr, check_buffer, get_current_process},
-    },
+    syscalls::{check_addr, check_buffer, get_current_process},
 };
+
 use alloc::{borrow::ToOwned, vec};
 use core::ffi::CStr;
 use x86_64::VirtAddr;

@@ -9,7 +9,6 @@ use alloc::{sync::Arc, vec::Vec};
 use conquer_once::spin::OnceCell;
 use spin::RwLock;
 use spin::mutex::Mutex;
-use syscalls::syscall_ret;
 use x86_64::registers::control::Cr3;
 use x86_64::structures::paging::mapper::{MapToError, UnmapError};
 use x86_64::structures::paging::{FrameDeallocator, PageTable, PhysFrame};
@@ -20,20 +19,19 @@ use x86_64::{
 
 use crate::PMM;
 use crate::elf::{Elf, ElfError};
+use crate::filesystem::vfs::Inode;
 use crate::scheduler::Thread;
-use crate::{debug_println, filesystem::vfs::Inode};
+use crate::syscalls::syscall_ret;
 
 #[allow(dead_code)]
 pub mod constants;
-
-pub mod syscalls;
 
 static NEXT_PID: AtomicU32 = AtomicU32::new(1);
 static PROCESS_TABLE: OnceCell<ProcessTable> = OnceCell::uninit();
 
 pub struct ProcessTable {
     /// Maps PID to user process
-    processes: RwLock<BTreeMap<u32, Arc<Mutex<UserProcess>>>>,
+    processes: RwLock<BTreeMap<u32, Arc<Mutex<Process>>>>,
 }
 
 impl ProcessTable {
@@ -49,7 +47,7 @@ impl ProcessTable {
     ///
     /// Most references to processes should be by PID. Holding this Arc<> for too long
     /// will delay process destruction, so drop this as soon as possible.
-    pub fn get_by_pid(pid: u32) -> Option<Arc<Mutex<UserProcess>>> {
+    pub fn get_by_pid(pid: u32) -> Option<Arc<Mutex<Process>>> {
         PROCESS_TABLE
             .get()
             .expect("Expected ProcessTable::init() to have been called.")
@@ -62,7 +60,7 @@ impl ProcessTable {
     /// Used internally when forking or creating a process to add to process table.
     /// # Panics
     /// Panics if ProcessTable::init() has not been called.
-    fn add_process(process: UserProcess) {
+    fn add_process(process: Process) {
         PROCESS_TABLE
             .get()
             .expect("Expected ProcessTable::init() to have been called.")
@@ -84,10 +82,10 @@ pub enum ProcessStatus {
     Terminated,
 }
 
-pub struct UserProcess {
+pub struct Process {
     /// Open file descriptors
     pub files: BTreeMap<u32, Arc<RwLock<FileDescriptor>>>, // So that file descriptors can be shared
-    next_fd: u32, // TODO: be less naive (if you repeatedly open and close file descriptors you will run out)
+    pub next_fd: u32, // TODO: be less naive (if you repeatedly open and close file descriptors you will run out)
     pub mapper: OffsetPageTable<'static>,
     pub thread: Arc<Mutex<Thread>>,
     pub pid: u32,
@@ -102,7 +100,7 @@ pub struct UserProcess {
     pub waiting: Vec<Arc<Mutex<Thread>>>,
 }
 
-impl UserProcess {
+impl Process {
     /// Used for creating the initial process.
     /// Reuses the initialisation page tables.
     /// Returns the PID of the new process.
@@ -114,7 +112,7 @@ impl UserProcess {
             None,
         )));
 
-        let process = UserProcess {
+        let process = Process {
             files: BTreeMap::new(),
             next_fd: 0,
             mapper,
@@ -507,7 +505,7 @@ impl UserProcess {
         let mapper =
             unsafe { OffsetPageTable::from_phys_offset(l4_table, self.mapper.phys_offset()) };
 
-        let child = UserProcess {
+        let child = Process {
             files: self.files.clone(),
             brk: self.brk,
             brk_initial: self.brk_initial,
@@ -541,7 +539,7 @@ impl UserProcess {
 /// - rbp stores userspace entry point
 /// - rbx stores userspace stack pointer
 #[unsafe(naked)]
-unsafe extern "sysv64" fn enter_userspace() {
+pub unsafe extern "sysv64" fn enter_userspace() {
     naked_asm!(
         // We must keep the userspace stack in rbx, since the kstack
         // is used to 'return' into here.

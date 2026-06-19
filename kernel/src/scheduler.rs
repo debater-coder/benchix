@@ -53,6 +53,7 @@ pub struct Thread {
     /// Parent process (PID reference)
     pub process: Option<u32>,
     /// Thread id
+    #[allow(dead_code)]
     pub tid: u32,
     pub name: Option<String>,
     pub cr3_frame: Option<PhysFrame>,

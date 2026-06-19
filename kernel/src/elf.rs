@@ -37,6 +37,7 @@ pub struct SectionHeaderEntry {
 }
 
 /// https://wiki.osdev.org/ELF_Tutorial#ELF_Sections
+#[allow(dead_code)]
 enum SectionHeaderEntryTypes {
     Null = 0,     // Null section
     Progbits = 1, // Program information
