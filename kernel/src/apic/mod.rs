@@ -89,20 +89,20 @@ mod pic {
         }
     }
 
-    pub struct IMCR {
+    pub struct Imcr {
         selector_port: Port<u8>,
         value_port: Port<u8>,
     }
 
-    impl IMCR {
+    impl Imcr {
         pub fn new() -> Self {
-            IMCR {
+            Imcr {
                 selector_port: Port::new(0x22),
                 value_port: Port::new(0x23),
             }
         }
 
-        /// See: https://zygomatic.sourceforge.net/devref/group__arch__ia32__apic.html
+        /// See: <https://zygomatic.sourceforge.net/devref/group__arch__ia32__apic.html>
         pub fn enable_symmetric_io_mode(&mut self) {
             unsafe {
                 self.selector_port.write(0x70u8); // select IMCR
@@ -112,14 +112,14 @@ mod pic {
     }
 }
 
-/// See: https://blog.wesleyac.com/posts/ioapic-interrupts
-/// Also see: https://github.com/debater-coder/bench2/blob/7e1141f24de42d7e7cf3f0ad7e0425e3ec517714/kernel/src/io/drivers/apic/mod.rs#L105
+/// See: <https://blog.wesleyac.com/posts/ioapic-interrupts>
+/// Also see: <https://github.com/debater-coder/bench2/blob/7e1141f24de42d7e7cf3f0ad7e0425e3ec517714/kernel/src/io/drivers/apic/mod.rs#L105>
 pub fn enable(mapper: &mut OffsetPageTable<'static>, interrupt_model: &InterruptModel<Global>) {
     // Step 1. Disable PIC
     pic::initialise(0x20, 0x28);
 
     // Step 2. Set IMCR
-    let mut imcr = pic::IMCR::new();
+    let mut imcr = pic::Imcr::new();
     imcr.enable_symmetric_io_mode();
 
     // Step 3. Configure LAPIC Spurious Interrupt Vector
@@ -138,19 +138,19 @@ pub fn enable(mapper: &mut OffsetPageTable<'static>, interrupt_model: &Interrupt
     let ioapic = &ioapics[0];
     let keyboard_gsi = interrupt_source_overrides
         .iter()
-        .filter_map(|interrupt_source_override| {
+        .find_map(|interrupt_source_override| {
             if interrupt_source_override.isa_source == (IsaIrq::Keyboard as u8) {
                 Some(interrupt_source_override.global_system_interrupt)
             } else {
                 None
             }
         })
-        .next()
         .unwrap_or(ioapic.global_system_interrupt_base + (IsaIrq::Keyboard as u32)); // A sensible default is that it is connected to the IOAPIC pin corresponding to its usual PIC pin
 
-    if keyboard_gsi < ioapic.global_system_interrupt_base {
-        panic!("No IOAPIC connected to keyboard");
-    }
+    assert!(
+        keyboard_gsi >= ioapic.global_system_interrupt_base,
+        "No IOAPIC connected to keyboard"
+    );
 
     let gsi_base = ioapic.global_system_interrupt_base;
 

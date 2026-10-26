@@ -6,7 +6,7 @@ use alloc::{
 
 use super::vfs::{DirectoryEntry, FileType, Filesystem, FilesystemError, Inode};
 
-/// https://wiki.osdev.org/Tar
+/// <https://wiki.osdev.org/Tar>
 #[derive(Debug)]
 #[repr(C)]
 struct TarHeader {
@@ -33,7 +33,9 @@ impl Ramdisk {
 
         while archive[offset] != 0 {
             let header = unsafe {
-                &*(archive[offset..(offset + size_of::<TarHeader>())].as_ptr() as *const TarHeader)
+                &*archive[offset..(offset + size_of::<TarHeader>())]
+                    .as_ptr()
+                    .cast::<TarHeader>()
             };
 
             let size = usize::from_str_radix(
@@ -59,9 +61,9 @@ impl Ramdisk {
             offset += size.div_ceil(512) * 512 + 512;
         }
 
-        Ramdisk::from_files(dev, files)
+        Ramdisk::from_files(dev, &files)
     }
-    pub fn from_files(dev: u32, files: Vec<(&str, &'static [u8])>) -> Self {
+    pub fn from_files(dev: u32, files: &[(&str, &'static [u8])]) -> Self {
         let mut map: BTreeMap<u32, Arc<Inode>> = BTreeMap::new();
 
         map.insert(

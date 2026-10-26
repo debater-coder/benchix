@@ -6,7 +6,7 @@ use crate::{
     syscalls::{check_addr, check_buffer, get_current_process},
 };
 
-use alloc::{borrow::ToOwned, vec};
+use alloc::{borrow::ToOwned, vec, vec::Vec};
 use core::ffi::CStr;
 use x86_64::VirtAddr;
 
@@ -58,11 +58,11 @@ pub(super) fn execve_inner(
 
     let execve_result = process.lock().execve(
         binary.as_slice(),
-        args.iter().map(|s| &**s).collect(),
-        vec![],
+        &args.iter().map(|s| &**s).collect::<Vec<&str>>(),
+        &[],
     );
     match execve_result {
-        Ok(_) => {
+        Ok(()) => {
             {
                 let process = process.lock(); // In a block to ensure mutex guard is dropped before scheduler
 

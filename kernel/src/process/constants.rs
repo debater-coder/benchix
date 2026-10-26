@@ -1,6 +1,6 @@
-/// From: include/uapi/asm-generic/ in linux kernel
-/// See also: https://gitlab.com/x86-psABIs/x86-64-ABI/-/jobs/9388606854/artifacts/raw/x86-64-ABI/abi.pdf
-/// A range between -4095 and -1 indicates an error, so these constants have type i64
+//! From: include/uapi/asm-generic/ in linux kernel
+//! See also: <https://gitlab.com/x86-psABIs/x86-64-ABI/-/jobs/9388606854/artifacts/raw/x86-64-ABI/abi.pdf>
+//! A range between -4095 and -1 indicates an error, so these constants have type i64
 
 // errno-base.h
 pub const EPERM: i64 = 1; /* Operation not permitted */
@@ -42,11 +42,11 @@ pub const ERANGE: i64 = 34; /* Math result not representable */
 pub const ENOSYS: i64 = 38; /* Invalid system call number */
 
 // fcntl.h
-pub const O_RDONLY: u32 = 0o00000000;
-pub const O_WRONLY: u32 = 0o00000001;
-pub const O_RDWR: u32 = 0o00000002;
-pub const O_CREAT: u32 = 0o00000100;
-pub const O_ACCMODE: u32 = 0000000003; // AND this to get access mode
+pub const O_RDONLY: u32 = 0o00_000_000;
+pub const O_WRONLY: u32 = 0o00_000_001;
+pub const O_RDWR: u32 = 0o00_000_002;
+pub const O_CREAT: u32 = 0o00_000_100;
+pub const O_ACCMODE: u32 = 0o000_000_003; // AND this to get access mode
 
 // mman-common.h
 pub const PROT_READ: u32 = 0x1; /* page can be read */
@@ -65,12 +65,12 @@ pub const ARCH_SET_CPUID: u32 = 0x1012;
 
 // include/uapi/linux/wait.h
 
-pub const WNOHANG: u32 = 0x00000001;
-pub const WUNTRACED: u32 = 0x00000002;
+pub const WNOHANG: u32 = 0x0000_0001;
+pub const WUNTRACED: u32 = 0x0000_0002;
 pub const WSTOPPED: u32 = WUNTRACED;
-pub const WEXITED: u32 = 0x00000004;
-pub const WCONTINUED: u32 = 0x00000008;
-pub const WNOWAIT: u32 = 0x01000000; /* Don't reap, just poll status.  */
+pub const WEXITED: u32 = 0x0000_0004;
+pub const WCONTINUED: u32 = 0x0000_0008;
+pub const WNOWAIT: u32 = 0x0100_0000; /* Don't reap, just poll status.  */
 
 /* First argument to waitid: */
 pub const P_ALL: u32 = 0;

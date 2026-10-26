@@ -23,6 +23,7 @@ pub enum FileType {
 /// Note that this doesn't contain a list of block addresses, as individual file systems are responsible for maintaining their own inode cache
 /// Once a filesystem is registered on the VFS, these inodes contain all the info needed to stand in for the real on-disk inodes
 #[derive(Debug)]
+#[allow(clippy::struct_field_names)]
 pub struct Inode {
     pub dev: u32,   // File system that the file belongs to
     pub inode: u32, // inode number
@@ -57,9 +58,10 @@ pub trait Filesystem: Send + Sync {
     ) -> Result<usize, FilesystemError>; // A locking operation
     fn readdir(&self, inode: Arc<Inode>) -> Result<Vec<DirectoryEntry>, FilesystemError>; // Get directory enteries
     fn inode(&self, dev: u32, inode: u32) -> Result<Arc<Inode>, FilesystemError>; // An inode lookup
+    #[allow(clippy::manual_try_fold)]
     fn traverse_fs(&self, root: Arc<Inode>, path: &str) -> Result<Arc<Inode>, FilesystemError> {
-        path.split("/").fold(Ok(root), |inode, segment| {
-            if segment == "" {
+        path.split('/').fold(Ok(root), |inode, segment| {
+            if segment.is_empty() {
                 return inode;
             }
             let (dev, ino) = self
@@ -98,6 +100,7 @@ impl VirtualFileSystem {
     }
 
     /// Only allows root mounting
+    #[allow(clippy::unnecessary_wraps)]
     pub fn mount(
         &mut self,
         dev: u32,
@@ -199,10 +202,9 @@ impl Filesystem for VirtualFileSystem {
         if dev == 0 && inode == 0 {
             return Ok(Arc::clone(&self.root));
         }
-        Ok(self
-            .filesystems
+        self.filesystems
             .get(&dev)
             .ok_or(FilesystemError::UnknownDevice)?
-            .inode(dev, inode)?)
+            .inode(dev, inode)
     }
 }

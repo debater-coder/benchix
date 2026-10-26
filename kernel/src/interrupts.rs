@@ -22,6 +22,7 @@ lazy_static! {
         let mut idt = InterruptDescriptorTable::new();
 
         {
+            #[allow(clippy::wildcard_imports)]
             use exception_handlers::*;
 
             idt.divide_error.set_handler_fn(divide_error);

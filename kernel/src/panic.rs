@@ -50,8 +50,9 @@ impl PanicConsole {
 }
 
 impl Write for PanicConsole {
+    #[allow(clippy::single_match_else)]
     fn write_str(&mut self, s: &str) -> fmt::Result {
-        let info = self.frame_buffer.info().clone();
+        let info = self.frame_buffer.info();
         let buffer = self.frame_buffer.buffer_mut();
 
         for byte in s.as_bytes() {
@@ -69,7 +70,7 @@ impl Write for PanicConsole {
                         get_raster(*byte as char, FontWeight::Regular, RasterHeight::Size32)
                             .unwrap_or_else(|| {
                                 loop {
-                                    hlt()
+                                    hlt();
                                 }
                             })
                             .raster();
@@ -154,7 +155,10 @@ impl Iterator for StackWalker {
         }
 
         // Ensure valid mapping to not page fault
-        if let Some(_) = page_table.translate_addr(VirtAddr::from_ptr(self.current_frame.rbp)) {
+        if page_table
+            .translate_addr(VirtAddr::from_ptr(self.current_frame.rbp))
+            .is_some()
+        {
             self.current_frame = unsafe { (*self.current_frame.rbp).clone() };
             Some(self.current_frame.clone())
         } else {
@@ -187,34 +191,28 @@ fn find_closest_symbol<'a>(
     let closest_symbol = symbols
         .iter()
         .filter_map(|symbol| {
-            if let Some(diff) = addr.checked_sub(symbol.st_value + offset) {
-                Some((symbol, diff))
-            } else {
-                None
-            }
+            addr.checked_sub(symbol.st_value + offset)
+                .map(|diff| (symbol, diff))
         })
         .min_by_key(|(_, diff)| *diff)
-        .and_then(|(symbol, _)| Some(symbol));
+        .map(|(symbol, _)| symbol);
 
     if let Some(symbol) = closest_symbol {
         let name = elf
             .lookup_strtab(strtab, symbol.st_name)
             .ok()
             .and_then(|inner| inner);
-        if let Some(name) = name {
-            Some(Symbol {
-                name,
-                addr: symbol.st_value + offset,
-            })
-        } else {
-            None
-        }
+        name.map(|name| Symbol {
+            name,
+            addr: symbol.st_value + offset,
+        })
     } else {
         None
     }
 }
 
 impl PanicWriter {
+    #[allow(clippy::large_stack_arrays)]
     pub fn new() -> Self {
         interrupts::disable();
 
@@ -264,13 +262,13 @@ impl PanicWriter {
                     self,
                     "#{} [0x{:x}] <{:#}+0x{:x}>",
                     i,
-                    frame.rip as u64,
+                    frame.rip,
                     rustc_demangle::demangle(symbol.name),
                     frame.rip - symbol.addr
                 )
                 .ok();
             } else {
-                writeln!(self, "#{} [0x{:x}] <unknown>", i, frame.rip as u64).ok();
+                writeln!(self, "#{} [0x{:x}] <unknown>", i, frame.rip).ok();
             }
         }
     }
@@ -280,7 +278,7 @@ impl PanicWriter {
             let framebuffer = unsafe { &mut *framebuffer };
 
             {
-                let (info, buffer) = (framebuffer.info().clone(), framebuffer.buffer_mut());
+                let (info, buffer) = (framebuffer.info(), framebuffer.buffer_mut());
 
                 for x in 0..info.width {
                     for y in 0..info.height {

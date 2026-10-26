@@ -72,7 +72,7 @@ fn check_buffer(buffer: &[u8]) -> bool {
 fn checked_slice_from_raw_parts<'a, T>(data: *const T, len: usize) -> Option<&'a [T]> {
     let base = VirtAddr::from_ptr(data);
     let ptr_len = len.checked_mul(size_of::<T>());
-    let end = ptr_len.and_then(|ptr_len| Some(base + (ptr_len as u64)));
+    let end = ptr_len.map(|ptr_len| base + (ptr_len as u64));
 
     if check_addr(base)
         && (if let Some(end) = end {
@@ -90,7 +90,7 @@ fn checked_slice_from_raw_parts<'a, T>(data: *const T, len: usize) -> Option<&'a
 fn checked_slice_from_raw_parts_mut<'a, T>(data: *mut T, len: usize) -> Option<&'a mut [T]> {
     let base = VirtAddr::from_ptr(data);
     let ptr_len = len.checked_mul(size_of::<T>());
-    let end = ptr_len.and_then(|len| Some(base + len as u64));
+    let end = ptr_len.map(|len| base + len as u64);
 
     if check_addr(base)
         && (if let Some(end) = end {
@@ -198,7 +198,7 @@ fn open(pathname: *const i8, flags: u32) -> u64 {
     process.next_fd += 1;
 
     debug_println!("Opened to fd: {}", fd);
-    fd as u64
+    u64::from(fd)
 }
 
 fn close(fd: u32) -> u64 {
@@ -230,7 +230,7 @@ fn arch_prctl(op: u32, addr: u64) -> u64 {
             let addr = VirtAddr::new(addr);
             if !check_addr(addr) {
                 return -EFAULT as u64;
-            };
+            }
 
             get_current_thread().lock().fs_base = addr;
             unsafe { FsBase::write(addr) };
@@ -265,16 +265,18 @@ fn brk(addr: u64) -> u64 {
         .skip(1)
         // First page has already been mapped so skip that one
         {
-            if let Err(_) = unsafe {
+            if unsafe {
                 process.allocate_page(
                     page,
                     PageTableFlags::NO_EXECUTE
                         | PageTableFlags::USER_ACCESSIBLE
                         | PageTableFlags::WRITABLE,
                 )
-            } {
+            }
+            .is_err()
+            {
                 return -ENOMEM as u64;
-            };
+            }
         }
     }
 
@@ -349,7 +351,7 @@ fn waitid(id_type: u32, id: u32) -> u64 {
     }
 }
 
-/// Stub implementation for set_tid_address
+/// Stub implementation for `set_tid_address`
 fn set_tid_address() -> u32 {
     debug_println!("set_tid_address()");
     get_current_process().lock().pid
@@ -371,8 +373,10 @@ fn writev(fd: u32, iov: *mut Iovec, iovcnt: usize) -> usize {
     debug_println!("writev({}, 0x{:x}, {})", fd, iov as u64, iovcnt);
 
     let base = VirtAddr::from_ptr(iov);
-    let len = (iovcnt as isize).checked_mul(size_of::<Iovec>() as isize);
-    let end = len.and_then(|len| Some(VirtAddr::from_ptr(iov) + len as u64));
+    let len = iovcnt
+        .cast_signed()
+        .checked_mul(size_of::<Iovec>().cast_signed());
+    let end = len.map(|len| VirtAddr::from_ptr(iov) + len as u64);
 
     if !(check_addr(base)
         && (if let Some(end) = end {
@@ -389,7 +393,7 @@ fn writev(fd: u32, iov: *mut Iovec, iovcnt: usize) -> usize {
     if iov
         .iter()
         .map(|entry| entry.io_len)
-        .try_reduce(|x, y| x.checked_add(y))
+        .try_reduce(usize::checked_add)
         .is_none()
     {
         return -EINVAL as usize;
@@ -398,7 +402,7 @@ fn writev(fd: u32, iov: *mut Iovec, iovcnt: usize) -> usize {
     let mut bytes_written = 0;
 
     for io_entry in iov {
-        let written = write(fd, io_entry.io_base, io_entry.io_len) as isize;
+        let written = write(fd, io_entry.io_base, io_entry.io_len).cast_signed();
         if written >= 0 {
             bytes_written += written;
         } else {
@@ -413,7 +417,7 @@ pub const MMAP_BUMP_LIMIT: VirtAddr = VirtAddr::new(0x7e00_0000_0000);
 
 fn mmap(addr: *mut u8, length: usize, prot: u32, flags: u32, _fd: u32, _offset: usize) -> u64 {
     // For now only support anonymous mappings
-    if !(flags & MAP_ANONYMOUS > 0) {
+    if flags & MAP_ANONYMOUS == 0 {
         return -EINVAL as u64;
     }
 
@@ -465,14 +469,14 @@ fn mmap(addr: *mut u8, length: usize, prot: u32, flags: u32, _fd: u32, _offset: 
             let map_result = unsafe { process.allocate_page(page, flags) };
 
             match map_result {
-                Ok(_) => {}
+                Ok(()) => {}
                 Err(MapToError::FrameAllocationFailed) => return -ENOMEM as u64,
                 Err(MapToError::ParentEntryHugePage) => panic!("Huge pages not implemented"),
                 Err(MapToError::PageAlreadyMapped(_)) => {
                     let _ = process.mapper.unmap(page);
 
                     match unsafe { process.allocate_page(page, flags) } {
-                        Ok(_) => {}
+                        Ok(()) => {}
                         Err(MapToError::FrameAllocationFailed) => return -ENOMEM as u64,
                         Err(MapToError::ParentEntryHugePage) => {
                             panic!("Huge pages not implemented")
@@ -518,21 +522,20 @@ pub extern "sysv64" fn handle_syscall_inner(syscall_number: u64) -> u64 {
             arg3 as u32,
             arg4 as u32,
             arg5 as usize,
-        ) as u64,
+        ),
         12 => brk(arg0),
         16 => ioctl(),
         20 => writev(arg0 as u32, arg1 as usize as *mut _, arg2 as usize) as u64,
-        57 => fork() as u64,
+        57 => u64::from(fork()),
         59 => execve(
             arg0 as usize as *const _,
             arg1 as usize as *const _,
             arg2 as usize as *const _,
         ),
-        60 => exit(arg0 as i32),
+        60 | 231 => exit(arg0 as i32),    // exit/exitgroup
         61 => waitid(P_PID, arg0 as u32), // stub for wait4
         158 => arch_prctl(arg0 as u32, arg1),
-        218 => set_tid_address() as u64,
-        231 => exit(arg0 as i32), // exit_group
+        218 => u64::from(set_tid_address()),
         247 => waitid(arg0 as u32, arg1 as u32),
         _ => {
             debug_println!(

@@ -98,6 +98,7 @@ impl Filesystem for Devfs {
         }
     }
 
+    #[allow(clippy::assigning_clones)]
     fn read(
         &self,
         inode: alloc::sync::Arc<super::vfs::Inode>,
@@ -117,14 +118,11 @@ impl Filesystem for Devfs {
                         None
                     };
 
-                    match decoded_key {
-                        Some(DecodedKey::Unicode(key)) => {
-                            let key = key.to_string();
-                            let key = key.as_str().as_bytes();
-                            self.console.lock().write(key);
-                            self.pending_input.lock().append(&mut Vec::from(key));
-                        }
-                        _ => (),
+                    if let Some(DecodedKey::Unicode(key)) = decoded_key {
+                        let key = key.to_string();
+                        let key = key.as_bytes();
+                        self.console.lock().write(key);
+                        self.pending_input.lock().append(&mut Vec::from(key));
                     }
                 }
                 let input = self.pending_input.lock();
@@ -139,7 +137,7 @@ impl Filesystem for Devfs {
                             .as_ref()
                             .unwrap()
                             .clone(),
-                    )
+                    );
                 });
 
                 scheduler::yield_execution();

@@ -22,7 +22,7 @@ static READY: OnceCell<Mutex<VecDeque<Arc<Mutex<Thread>>>>> = OnceCell::uninit()
 static NEXT_TID: AtomicU32 = AtomicU32::new(0);
 
 /// Used Redox for reference.
-/// https://gitlab.redox-os.org/redox-os/kernel/-/blob/master/src/context/arch/x86_64.rs?ref_type=heads
+/// <https://gitlab.redox-os.org/redox-os/kernel/-/blob/master/src/context/arch/x86_64.rs?ref_type=heads>
 ///
 /// These are all System V ABI callee-saved registers, the rest will be pushed
 /// to stack on function call
@@ -66,7 +66,7 @@ impl core::fmt::Debug for Thread {
             .field("name", &self.name.clone().unwrap_or("<no name>".to_owned()))
             .field("context", &format_args!("{:x?}", self.context))
             .field("process", &format_args!("{:?}", self.process))
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
@@ -94,9 +94,10 @@ impl Thread {
     pub fn set_func(&mut self, func: unsafe extern "sysv64" fn()) {
         // Put the return address just below the trapframe
         // We do this to avoid this address
-        *self.kstack.iter_mut().nth_back(15).unwrap() = func as u64;
+        *self.kstack.iter_mut().nth_back(15).unwrap() = func as usize as u64;
 
-        self.context.rsp = self.kstack.iter().nth_back(15).unwrap() as *const u64 as u64;
+        self.context.rsp =
+            core::ptr::from_ref::<u64>(self.kstack.iter().nth_back(15).unwrap()) as u64;
     }
 
     pub fn kstack_addr(&self) -> VirtAddr {
@@ -115,7 +116,7 @@ impl Thread {
 pub fn init() {
     READY
         .try_init_once(|| Mutex::new(VecDeque::new()))
-        .expect("scheduler::init should only be called once.")
+        .expect("scheduler::init should only be called once.");
 }
 
 pub fn enqueue(thread: Arc<Mutex<Thread>>) {
@@ -125,7 +126,7 @@ pub fn enqueue(thread: Arc<Mutex<Thread>>) {
             .expect("scheduler::init should have been called")
             .lock()
             .push_back(thread);
-    })
+    });
 }
 
 /// Taken from redox os, with some modifications

@@ -21,7 +21,6 @@ pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
 /// Per-CPU data
 /// For simplicity, we handle interrupts on the kernel stack of the current stack
 /// The linux kernel has a separate stack for this to save stack space.
-/// That's why we keep the TSS in an UnsafeCell, so we can update the interrupt handling stack.
 pub struct PerCpu {
     /// Kernel stack to switch to on syscall.
     /// This is duplicated in this struct to make it easier
@@ -47,9 +46,7 @@ impl PerCpu {
 
             #[allow(unused_unsafe)]
             let stack_start = VirtAddr::from_ptr(unsafe { &raw const STACK });
-            let stack_end = stack_start + STACK_SIZE as u64;
-
-            stack_end // stacks grow downwards
+            stack_start + STACK_SIZE as u64 // The stack end
         };
 
         // Setting up gdt
@@ -92,14 +89,14 @@ impl PerCpu {
                 PatMemoryType::WriteCombining, // 0b101
                 PatMemoryType::Uncacheable,
                 PatMemoryType::StrongUncacheable,
-            ])
+            ]);
         };
     }
 
     /// # Safety
     ///
-    /// The GS segment base must point to a PerCpu struct as set up by
-    /// PerCpu::init_cpu
+    /// The GS segment base must point to a `PerCpu` struct as set up by
+    /// `PerCpu::init_cpu`
     pub unsafe fn get_cpu() -> &'static mut Self {
         unsafe {
             let read = GsBase::read();
@@ -116,7 +113,7 @@ impl PerCpu {
         // Intel manual vol 3 3.4.2: A segment selector is a 16-bit identifier for a segment (see Figure 3-6). It does not point directly to the segment, // but instead points to the segment descriptor that defines the segment.
         let code_selector = self.gdt.append(Descriptor::kernel_code_segment());
         let data_selector = self.gdt.append(Descriptor::kernel_data_segment());
-        let tss_selector = self.gdt.append(Descriptor::tss_segment(&self.tss));
+        let tss_selector = self.gdt.append(Descriptor::tss_segment(self.tss));
         let user_data_selector = self.gdt.append(Descriptor::user_data_segment());
         let user_code_selector = self.gdt.append(Descriptor::user_code_segment());
 

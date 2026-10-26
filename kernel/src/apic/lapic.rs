@@ -21,7 +21,7 @@ pub const LAPIC_BASE_PHYSICAL_ADDRESS: u64 = 0xFEE0_0000;
 
 pub unsafe fn lapic_end_of_interrupt() {
     unsafe {
-        (VirtAddr::new(LAPIC_START_VIRT as u64 + EOI_OFFSET).as_mut_ptr() as *mut u32).write(0)
+        (VirtAddr::new(LAPIC_START_VIRT + EOI_OFFSET).as_mut_ptr::<u32>()).write(0);
     };
 }
 
@@ -52,7 +52,7 @@ impl Lapic {
         mapper: &mut OffsetPageTable<'static>,
         spurious_interrupt_vector: u8,
     ) -> Self {
-        let virt_addr = VirtAddr::new(LAPIC_START_VIRT as u64);
+        let virt_addr = VirtAddr::new(LAPIC_START_VIRT);
 
         unsafe {
             mapper
@@ -73,10 +73,10 @@ impl Lapic {
 
         // https://forum.osdev.org/viewtopic.php?f=1&t=12045&hilit=APIC+init
 
-        apic.write(SIVR_OFFSET, 0x100 | (spurious_interrupt_vector as u32)); // 0x100 sets bit 8 to enable APIC
+        apic.write(SIVR_OFFSET, 0x100 | u32::from(spurious_interrupt_vector)); // 0x100 sets bit 8 to enable APIC
 
         // set destination format register to flat mode
-        apic.write(DESTINATION_FORMAT_OFFSET, 0xFFFFFFFF);
+        apic.write(DESTINATION_FORMAT_OFFSET, 0xFFFF_FFFF);
 
         // set task priority to accept all interrupts
         apic.write(TASK_PRIORITY_OFFSET, 0);
@@ -92,7 +92,7 @@ impl Lapic {
     ) {
         // The order is important DO NOT CHANGE
         self.write(DIVIDE_CONFIG_OFFSET, timer_divide as u32);
-        self.write(LVT_TIMER_OFFSET, (1 << 17) | (vector as u32));
+        self.write(LVT_TIMER_OFFSET, (1 << 17) | u32::from(vector));
         self.write(INITIAL_COUNT_REGISTER_OFFSET, timer_initial);
     }
 
@@ -101,6 +101,6 @@ impl Lapic {
         self.mm_region[offset as usize / 4]
     }
     fn write(&mut self, offset: u64, val: u32) {
-        unsafe { write_volatile(&mut self.mm_region[offset as usize / 4], val) };
+        unsafe { write_volatile(&raw mut self.mm_region[offset as usize / 4], val) };
     }
 }

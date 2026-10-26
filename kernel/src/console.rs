@@ -62,7 +62,7 @@ pub struct Console {
 impl Console {
     pub fn new(framebuffer: &'static mut FrameBuffer, mapper: &mut OffsetPageTable) -> Self {
         let mut framebuffer = Framebuffer {
-            framebuffer_info: framebuffer.info().clone(),
+            framebuffer_info: framebuffer.info(),
             raw_framebuffer: framebuffer.buffer_mut(),
         };
 
@@ -228,7 +228,7 @@ impl fmt::Write for DebugCons {
 #[macro_export]
 macro_rules! debug_print {
     ($($arg:tt)*) => {
-        let _ = <crate::console::DebugCons as core::fmt::Write>::write_fmt(&mut crate::console::DebugCons {}, format_args!($($arg)*));
+        let _ = <$crate::console::DebugCons as core::fmt::Write>::write_fmt(&mut $crate::console::DebugCons {}, format_args!($($arg)*));
     };
 }
 

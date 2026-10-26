@@ -32,7 +32,7 @@ impl IoApic {
         let low_offset = 0x10 + irq * 2;
         let high_offset = 0x10 + irq * 2 + 1;
 
-        let ioredtbl = (self.read(low_offset) as u64) | ((self.read(high_offset) as u64) << 32);
+        let ioredtbl = u64::from(self.read(low_offset)) | (u64::from(self.read(high_offset)) << 32);
 
         let delivery_mode = 0b000u8;
 
@@ -41,23 +41,23 @@ impl IoApic {
         let pin_polarity = PinPolarity::ActiveHigh as u8;
 
         let ioredtbl = (ioredtbl & !0x0f0_0000_0001_efff)
-            | (vector as u64)
-            | (((delivery_mode & 0b111) as u64) << 8)
-            | (((destination_mode & 0b1) as u64) << 11)
-            | (((pin_polarity & 0b1) as u64) << 13)
-            | (((lapic_id & 0xf) as u64) << 56);
+            | u64::from(vector)
+            | (u64::from(delivery_mode & 0b111) << 8)
+            | (u64::from(destination_mode & 0b1) << 11)
+            | (u64::from(pin_polarity & 0b1) << 13)
+            | (u64::from(lapic_id & 0xf) << 56);
 
         self.write(low_offset, ioredtbl as u32);
-        self.write(high_offset, (ioredtbl >> 32) as u32)
+        self.write(high_offset, (ioredtbl >> 32) as u32);
     }
 
     fn read(&mut self, offset: u8) -> u32 {
-        unsafe { write_volatile(self.ioregsel, offset as u32) };
+        unsafe { write_volatile(self.ioregsel, u32::from(offset)) };
         *self.iowin
     }
 
     fn write(&mut self, offset: u8, value: u32) {
-        unsafe { write_volatile(self.ioregsel, offset as u32) };
+        unsafe { write_volatile(self.ioregsel, u32::from(offset)) };
         unsafe { write_volatile(self.iowin, value) };
     }
 
@@ -71,7 +71,7 @@ impl IoApic {
             mapper
                 .map_to(
                     Page::<Size4KiB>::containing_address(VirtAddr::new(IOAPIC_START_VIRT)),
-                    PhysFrame::containing_address(PhysAddr::new(base_address as u64)),
+                    PhysFrame::containing_address(PhysAddr::new(u64::from(base_address))),
                     PageTableFlags::WRITABLE | PageTableFlags::PRESENT | PageTableFlags::NO_CACHE,
                     &mut *PMM.get().unwrap().lock(),
                 )

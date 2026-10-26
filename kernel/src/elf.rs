@@ -21,6 +21,7 @@ pub struct ProgramHeaderEntry {
     pub align: u64,
 }
 
+#[allow(clippy::struct_field_names)]
 #[derive(Debug)]
 #[repr(C)]
 pub struct SectionHeaderEntry {
@@ -36,7 +37,7 @@ pub struct SectionHeaderEntry {
     pub sh_entsize: u64,
 }
 
-/// https://wiki.osdev.org/ELF_Tutorial#ELF_Sections
+/// <https://wiki.osdev.org/ELF_Tutorial#ELF_Sections>
 #[allow(dead_code)]
 enum SectionHeaderEntryTypes {
     Null = 0,     // Null section
@@ -48,6 +49,7 @@ enum SectionHeaderEntryTypes {
     Rel = 9,      // Relocation (no addend)
 }
 
+#[allow(clippy::struct_field_names)]
 #[derive(Debug)]
 #[repr(C)]
 pub struct SymbolTableEntry {
@@ -93,8 +95,10 @@ impl<'a> Elf<'a> {
         Ok((0..header_num)
             .map(move |i| header_start + header_size * i)
             .map(|offset| unsafe {
-                &*(self.binary[offset..(offset + size_of::<ProgramHeaderEntry>())].as_ptr()
-                    as *const ProgramHeaderEntry)
+                #[allow(clippy::cast_ptr_alignment)]
+                &*(self.binary[offset..(offset + size_of::<ProgramHeaderEntry>())]
+                    .as_ptr()
+                    .cast::<ProgramHeaderEntry>())
             }))
     }
 
@@ -110,8 +114,10 @@ impl<'a> Elf<'a> {
         Ok((0..header_num)
             .map(move |i| header_start + header_size * i)
             .map(|offset| unsafe {
-                &*(self.binary[offset..(offset + size_of::<SectionHeaderEntry>())].as_ptr()
-                    as *const SectionHeaderEntry)
+                #[allow(clippy::cast_ptr_alignment)]
+                &*self.binary[offset..(offset + size_of::<SectionHeaderEntry>())]
+                    .as_ptr()
+                    .cast::<SectionHeaderEntry>()
             }))
     }
 
@@ -128,9 +134,11 @@ impl<'a> Elf<'a> {
         Ok((
             unsafe {
                 slice::from_raw_parts(
-                    &*(self.binary[symtab_entry.sh_offset as usize
+                    #[allow(clippy::cast_ptr_alignment)]
+                    &raw const *self.binary[symtab_entry.sh_offset as usize
                         ..(symtab_entry.sh_offset + symtab_entry.sh_size) as usize]
-                        .as_ptr() as *const SymbolTableEntry),
+                        .as_ptr()
+                        .cast::<SymbolTableEntry>(),
                     (symtab_entry.sh_size / symtab_entry.sh_entsize) as usize,
                 )
             },

@@ -21,7 +21,7 @@ impl AcpiHandler for Handler {
                 NonNull::new((self.phys_offset + physical_address as u64).as_mut_ptr()).unwrap(),
                 size,
                 size,
-                self.clone(),
+                *self,
             )
         }
     }

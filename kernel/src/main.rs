@@ -1,4 +1,11 @@
 #![warn(clippy::all, clippy::pedantic)]
+#![allow(
+    clippy::similar_names,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::uninlined_format_args,
+    clippy::match_wildcard_for_single_variants
+)]
 #![feature(abi_x86_interrupt, allocator_api, never_type, iterator_try_reduce)]
 #![no_std]
 #![no_main]
@@ -80,7 +87,7 @@ pub static PMM: OnceCell<Mutex<PhysicalMemoryManager>> = OnceCell::uninit();
 bootloader_api::entry_point!(kernel_main, config = &BOOTLOADER_CONFIG);
 fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     let framebuffer = boot_info.framebuffer.as_mut().unwrap();
-    unsafe { *&raw mut panic::PANIC_FRAMEBUFFER = Some(&raw mut *framebuffer) }
+    unsafe { panic::PANIC_FRAMEBUFFER = Some(&raw mut *framebuffer) }
 
     interrupts::init_idt();
 
@@ -134,7 +141,7 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     VFS.init_once(|| {
         let mut vfs = VirtualFileSystem::new();
         let devfs = Devfs::init(console, 1);
-        let ramdisk = unsafe { Ramdisk::from_tar(2, &binary) };
+        let ramdisk = unsafe { Ramdisk::from_tar(2, binary) };
         vfs.mount(1, Box::new(devfs), "dev", 0).unwrap();
         vfs.mount(2, Box::new(ramdisk), "bin", 0).unwrap();
         vfs
@@ -163,11 +170,7 @@ fn kernel_main(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
 
         process
             .lock()
-            .execve(
-                executable.as_slice(),
-                vec!["/init/init", "arg2", "arg3"],
-                vec![],
-            )
+            .execve(executable.as_slice(), &["/init/init", "arg2", "arg3"], &[])
             .unwrap();
 
         kernel_log!("execve completed.");

@@ -43,7 +43,7 @@ impl ProcessTable {
 
     /// Gets a process by its PID
     /// # Panics
-    /// Panics if ProcessTable::init() has not been called.
+    /// Panics if `ProcessTable::init()` has not been called.
     ///
     /// Most references to processes should be by PID. Holding this Arc<> for too long
     /// will delay process destruction, so drop this as soon as possible.
@@ -59,7 +59,7 @@ impl ProcessTable {
 
     /// Used internally when forking or creating a process to add to process table.
     /// # Panics
-    /// Panics if ProcessTable::init() has not been called.
+    /// Panics if `ProcessTable::init()` has not been called.
     fn add_process(process: Process) {
         PROCESS_TABLE
             .get()
@@ -141,11 +141,12 @@ impl Process {
     /// Currently this only supports static ELF loading -- dynamic executables or
     /// shebang scripts are not supported.
     ///
+    #[allow(clippy::too_many_lines)]
     pub fn execve(
         &mut self,
         binary: &[u8],
-        args: Vec<&str>,
-        _env: Vec<&str>, // TODO
+        args: &[&str],
+        _env: &[&str], // TODO
     ) -> Result<(), ElfError> {
         let elf = Elf::new(binary)?;
 
@@ -200,7 +201,7 @@ impl Process {
                 unsafe {
                     (self.mapper.phys_offset() + frame.start_address().as_u64())
                         .as_mut_ptr::<u8>()
-                        .write_bytes(0, 0x1000)
+                        .write_bytes(0, 0x1000);
                 };
 
                 // The start index in the DESTINATION FRAME
@@ -386,13 +387,13 @@ impl Process {
         unsafe {
             (self.mapper.phys_offset() + frame.start_address().as_u64())
                 .as_mut_ptr::<u8>()
-                .write_bytes(0, 0x1000)
+                .write_bytes(0, 0x1000);
         };
 
         unsafe {
             self.mapper
                 .map_to(page, frame, PageTableFlags::PRESENT | flags, &mut *pmm)?
-                .flush()
+                .flush();
         };
         self.frames.push(frame);
 
@@ -437,7 +438,9 @@ impl Process {
         };
 
         // Ensure destination page table is zeroed before writing to it
-        unsafe { core::ptr::write_bytes(dst as *mut PageTable as *mut u8, 0, 4096) };
+        unsafe {
+            core::ptr::write_bytes(core::ptr::from_mut::<PageTable>(dst).cast::<u8>(), 0, 4096);
+        };
 
         // Trying to write *dst = PageTable::new() was problematic
 
