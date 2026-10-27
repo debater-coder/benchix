@@ -6,7 +6,7 @@
     clippy::uninlined_format_args,
     clippy::match_wildcard_for_single_variants
 )]
-#![feature(abi_x86_interrupt, allocator_api, never_type, iterator_try_reduce)]
+#![feature(abi_x86_interrupt, iterator_try_reduce)]
 #![no_std]
 #![no_main]
 extern crate alloc;

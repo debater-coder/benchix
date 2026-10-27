@@ -262,6 +262,7 @@ fn brk(addr: u64) -> u64 {
             Page::<Size4KiB>::containing_address(process.brk),
             Page::containing_address(addr),
         )
+        .into_iter()
         .skip(1)
         // First page has already been mapped so skip that one
         {
@@ -285,6 +286,7 @@ fn brk(addr: u64) -> u64 {
             Page::<Size4KiB>::containing_address(addr),
             Page::containing_address(process.brk),
         )
+        .into_iter()
         .skip(1)
         // Don't unmap the current break
         {
@@ -460,7 +462,7 @@ fn mmap(addr: *mut u8, length: usize, prot: u32, flags: u32, _fd: u32, _offset: 
         let process = get_current_process();
         let mut process = process.lock();
 
-        for page in range.clone() {
+        for page in range {
             let mut flags = PageTableFlags::PRESENT;
             flags.set(PageTableFlags::USER_ACCESSIBLE, prot & PROT_READ > 0);
             flags.set(PageTableFlags::WRITABLE, prot & PROT_WRITE > 0);
