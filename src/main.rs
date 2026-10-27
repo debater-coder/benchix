@@ -1,9 +1,9 @@
-use std::env;
+use std::{env, path::PathBuf};
 
 fn main() {
     // read env variables that were set in build script
-    let uefi_path = env!("UEFI_PATH");
-    let elf_path = env!("ELF_PATH");
+    let uefi_path = env::var("UEFI_PATH").unwrap();
+    let elf_path = env::var("ELF_PATH").unwrap();
 
     println!("UEFI Path s{:?}", uefi_path);
     println!("Kernel ELF Path s{:?}", elf_path);
@@ -17,9 +17,10 @@ fn main() {
     };
     // cmd.arg("-d").arg("int");
     cmd.arg("-debugcon").arg("stdio");
-    cmd.arg("-bios").arg(ovmf_prebuilt::ovmf_pure_efi());
+    cmd.arg("-bios")
+        .arg(PathBuf::from(env::var_os("OVMF_FD").unwrap()));
     cmd.arg("-drive")
-        .arg(format!("format=raw,file={uefi_path}"));
+        .arg(format!("format=raw,file={uefi_path},snapshot=on"));
 
     let mut child = cmd.spawn().unwrap();
     child.wait().unwrap();

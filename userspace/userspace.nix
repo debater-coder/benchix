@@ -30,8 +30,8 @@ let
   };
 in
 {
-  userspace-tar = pkgsStatic.stdenv.mkDerivation {
-    name = "userspace-tar";
+  ramdisk = pkgsStatic.stdenv.mkDerivation {
+    name = "ramdisk";
 
     buildCommand = ''
       mkdir -p $out/share
