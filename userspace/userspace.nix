@@ -26,6 +26,8 @@ let
       init
       echo
       sh
+      pkgsStatic.hello
+      pkgsStatic.busybox
     ];
   };
 in
