@@ -101,8 +101,8 @@
         # Sensible
         postInstall = ''
           wrapProgram $out/bin/benchix \
-            --set UEFI_PATH $out/share/kernel.img \
-            --set ELF_PATH $out/share/kernel.elf \
+            --set UEFI_PATH $KERNEL_ARTIFACT_DIR/kernel.img \
+            --set ELF_PATH $KERNEL_ARTIFACT_DIR/kernel.elf \
             --set OVMF_FD ${pkgs.OVMF.fd}/FV/OVMF.fd \
             --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.qemu ]}
         '';
@@ -120,6 +120,9 @@
       };
 
       devShells.${system}.default = pkgs.mkShell {
+        RAMDISK_PATH = userspace.ramdisk;
+        OVMF_FD = "${pkgs.OVMF.fd}/FV/OVMF.fd";
+
         nativeBuildInputs = with pkgs; [
           qemu
           gdb
