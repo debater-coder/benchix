@@ -31,6 +31,7 @@
         toolchain.default.override {
           extensions = [ "rust-src" ];
           targets = [
+            "x86_64-unknown-uefi"
             "x86_64-unknown-linux-gnu"
             "x86_64-unknown-none"
           ];
@@ -41,6 +42,35 @@
         cargo = toolchain;
         rustc = toolchain;
       };
+
+      bootloaderUefi =
+        let
+          src = pkgs.fetchCrate {
+            pname = "bootloader-x86_64-uefi";
+            version = "0.11.17";
+            hash = "sha256-V+8JG5nAMPuj+CF2m01o3oqB9IKQPpKrAIYF2RtJPck=";
+          };
+        in
+        rustPlatform.buildRustPackage {
+          inherit src;
+          pname = "bootloader-x86_64-uefi";
+          version = "0.11.17";
+
+          cargoLock.lockFile = "${src}/Cargo.lock";
+          doCheck = false;
+          dontFixup = true;
+          auditable = false;
+
+          buildPhase = ''
+            runHook preBuild
+            cargo build --release --locked --target x86_64-unknown-uefi
+            runHook postBuild
+          '';
+          installPhase = ''
+            install -D target/x86_64-unknown-uefi/release/bootloader-x86_64-uefi.efi \
+              $out/bootloader-x86_64-uefi.efi
+          '';
+        };
 
       kernel = rustPlatform.buildRustPackage {
         pname = "benchix";
@@ -53,8 +83,8 @@
           pkgs.jq
         ];
 
-        PREBUILT_UEFI = ./bootloader-x86_64-uefi.efi;
-        RAMDISK_PATH = "${userspace.ramdisk}/share/ramdisk.tar";
+        PREBUILT_UEFI = "${bootloaderUefi}/bootloader-x86_64-uefi.efi";
+        RAMDISK_PATH = userspace.ramdisk;
         KERNEL_ARTIFACT_DIR = "${placeholder "out"}/share";
 
         # Very bad hacks
@@ -80,6 +110,7 @@
     in
     {
       packages.${system} = userspace // {
+        inherit bootloaderUefi kernel;
         default = kernel;
       };
 

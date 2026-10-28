@@ -36,8 +36,7 @@ in
     name = "ramdisk";
 
     buildCommand = ''
-      mkdir -p $out/share
-      tar -hcf $out/share/ramdisk.tar -C ${userspace}/bin .
+      tar -hcf $out -C ${userspace}/bin .
     '';
   };
 }
