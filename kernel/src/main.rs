@@ -57,7 +57,8 @@ pub static BOOTLOADER_CONFIG: BootloaderConfig = {
     config.kernel_stack_size = KERNEL_STACK_SIZE;
     config.mappings.kernel_stack = Mapping::FixedAddress(KERNEL_STACK_START);
     config.mappings.physical_memory = Some(Mapping::FixedAddress(0xffff_e000_0000_0000)); // 16 TiB of RAM ought to be enough for anybody
-    config.mappings.dynamic_range_start = Some(0xffff_8000_0000_0000);
+    config.mappings.kernel_base = Mapping::FixedAddress(0xffff_8000_0000_0000);
+    config.mappings.dynamic_range_start = Some(0xffff_8100_0000_0000);
     config.mappings.dynamic_range_end = Some(0xffff_8fff_fffe_ffff);
     config
 };
