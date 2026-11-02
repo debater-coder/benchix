@@ -10,6 +10,7 @@ bootloader = { version = "0.11.17", default-features = false, features = [
 kernel = { path = "kernel", artifact = "bin", target = "x86_64-unknown-none" }
 
 [dependencies]
+clap = { version = "4.6.7", features = ["derive"] }
 # used for UEFI booting in QEMU
 ovmf-prebuilt = "0.1.0-alpha.1"
 

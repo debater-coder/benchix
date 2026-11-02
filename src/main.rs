@@ -1,26 +1,38 @@
 use std::{env, path::PathBuf};
 
+use clap::Parser;
+
+#[derive(Parser)]
+#[command(name = "Benchix Runner")]
+struct Cli {
+    /// Connect to GDB
+    #[arg(short, long)]
+    debug: bool,
+}
+
 fn main() {
+    let cli = Cli::parse();
+
     // read env variables that were set in build script
     let uefi_path = env::var("UEFI_PATH").unwrap();
     let elf_path = env::var("ELF_PATH").unwrap();
 
-    println!("UEFI Path s{:?}", uefi_path);
-    println!("Kernel ELF Path s{:?}", elf_path);
+    println!("UEFI Path {:?}", uefi_path);
+    println!("Kernel ELF Path {:?}", elf_path);
 
     let mut cmd = std::process::Command::new("qemu-system-x86_64");
-    if let Some(x) = env::args().nth(1) {
-        if x == "DEBUG" {
-            cmd.arg("-s");
-            cmd.arg("-S");
-        };
+
+    if cli.debug {
+        cmd.arg("-s");
+        cmd.arg("-S");
     };
-    // cmd.arg("-d").arg("int");
+
     cmd.arg("-debugcon").arg("stdio");
-    cmd.arg("-bios")
-        .arg(PathBuf::from(env::var_os("OVMF_FD").unwrap()));
     cmd.arg("-drive")
         .arg(format!("format=raw,file={uefi_path},snapshot=on"));
+
+    cmd.arg("-bios")
+        .arg(PathBuf::from(env::var_os("OVMF_FD").unwrap()));
 
     let mut child = cmd.spawn().unwrap();
     child.wait().unwrap();

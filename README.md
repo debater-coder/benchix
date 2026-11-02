@@ -10,7 +10,7 @@ It runs on the x86-64 platform, and boots from UEFI.
 TODO automate this.
 
 ```
-add-symbol-file /home/hamzah/benchix/target/x86_64-unknown-none/debug/build/kernel/96447d99be3dc9b3/artifact/bin/kernel -o 0xffff_8000_0000_0000
+add-symbol-file /home/hamzah/benchix/target/x86_64-unknown-none/debug/build/kernel/96447d99be3dc9b3/artifact/bin/kernel -o 0xffff800000000000
 ```
 
 To load symbol files.
