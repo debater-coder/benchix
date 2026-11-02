@@ -20,23 +20,35 @@ let
   init = pkgFromName "init";
   echo = pkgFromName "echo";
   sh = pkgFromName "sh";
-  userspace = pkgsStatic.symlinkJoin {
-    name = "userspace";
-    paths = [
-      init
-      echo
-      sh
-      pkgsStatic.hello
-      pkgsStatic.busybox
-    ];
-  };
+  test_process_cleanup = pkgFromName "test_process_cleanup";
+  mkUserspace =
+    { pkgs }:
+    pkgsStatic.symlinkJoin {
+      name = "userspace";
+      paths = pkgs;
+    };
 in
 {
-  ramdisk = pkgsStatic.stdenv.mkDerivation {
-    name = "ramdisk";
+  ramdisk = pkgsStatic.lib.makeOverridable (
+    (
+      { pkgs }:
+      pkgsStatic.stdenv.mkDerivation {
+        name = "ramdisk";
 
-    buildCommand = ''
-      tar -hcf $out -C ${userspace}/bin .
-    '';
-  };
+        buildCommand = ''
+          tar -hcf $out -C ${mkUserspace { inherit pkgs; }}/bin .
+        '';
+      }
+    )
+      {
+        pkgs = [
+          init
+          echo
+          sh
+          test_process_cleanup
+          pkgsStatic.hello
+          pkgsStatic.busybox
+        ];
+      }
+  );
 }
