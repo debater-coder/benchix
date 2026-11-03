@@ -1,8 +1,14 @@
+use crate::debug_println;
 use alloc::vec;
 use alloc::vec::Vec;
+use benchix_tracing::{
+    MAX_MSG_SIZE, TraceEvent,
+    TraceType::{self, Msg},
+};
 use bootloader_api::info::{FrameBuffer, FrameBufferInfo};
 use core::fmt;
 use noto_sans_mono_bitmap::{FontWeight, RasterHeight, get_raster, get_raster_width};
+use postcard::to_slice_cobs;
 use x86_64::{
     VirtAddr,
     instructions::port::Port,
@@ -213,14 +219,32 @@ macro_rules! early_println {
 /// This is an example of how not to write hardware interfaces
 pub struct DebugCons;
 
-impl fmt::Write for DebugCons {
-    fn write_str(&mut self, s: &str) -> fmt::Result {
-        unsafe {
-            for c in s.as_bytes() {
+#[inline(never)]
+pub fn trace(trace_type: TraceType) {
+    let mut out_buf = [0u8; MAX_MSG_SIZE];
+    match to_slice_cobs(
+        &TraceEvent {
+            calling_address: core::intrinsics::return_address() as u64,
+            trace_type,
+        },
+        &mut out_buf,
+    ) {
+        Ok(used) => unsafe {
+            Port::new(0xe9).write(0u8); // COBS sentinel
+            for c in used {
                 Port::new(0xe9).write(*c);
             }
+        },
+        Err(postcard::Error::SerializeBufferFull) => {
+            debug_println!("[WARNING] trace buffer full");
         }
+        _ => {}
+    }
+}
 
+impl fmt::Write for DebugCons {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        trace(Msg(s));
         Ok(())
     }
 }

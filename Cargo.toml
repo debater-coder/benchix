@@ -15,4 +15,4 @@ clap = { version = "4.6.7", features = ["derive"] }
 ovmf-prebuilt = "0.1.0-alpha.1"
 
 [workspace]
-members = ["kernel"]
+members = ["kernel", "benchix_tracing", "benchix_viewer"]

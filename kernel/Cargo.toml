@@ -11,6 +11,9 @@ bitflags = "2.9.0"
 acpi = "5.2.0"
 pc-keyboard = "0.8.0"
 rustc-demangle = "0.1"
+benchix_tracing = { path = "../benchix_tracing" }
+postcard = "1.1.3"
+serde = { version = "1.0.229", default-features = false }
 
 [dependencies.x86_64]
 version = "=0.16.0-rc.0"
