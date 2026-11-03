@@ -123,11 +123,16 @@
         RAMDISK_PATH = userspace.ramdisk;
         OVMF_FD = "${pkgs.OVMF.fd}/FV/OVMF.fd";
 
-        nativeBuildInputs = with pkgs; [
-          qemu
-          gdb
+        packages = [
+          (pkgs.writeShellScriptBin "benchix-gdb" ''
+            rust-gdb -ex "target remote ''${2:-localhost:1234}" \
+            -ex "add-symbol-file $1 -o 0xffff800000000000"
+          '')
+          pkgs.qemu
+          pkgs.gdb
           toolchain
         ];
+
       };
     };
 }
