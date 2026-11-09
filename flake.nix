@@ -123,6 +123,17 @@
         RAMDISK_PATH = userspace.ramdisk;
         OVMF_FD = "${pkgs.OVMF.fd}/FV/OVMF.fd";
 
+        LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
+          pkgs.libGL
+          pkgs.libxkbcommon
+          pkgs.wayland
+          pkgs.libX11
+          pkgs.libXcursor
+          pkgs.libXi
+          pkgs.libXrandr
+          pkgs.libxcb
+        ];
+
         packages = [
           (pkgs.writeShellScriptBin "benchix-gdb" ''
             rust-gdb -ex "target remote ''${2:-localhost:1234}" \

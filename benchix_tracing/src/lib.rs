@@ -3,14 +3,14 @@
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Eq, PartialEq, Clone, Copy)]
 pub struct TraceEvent<'a> {
     pub calling_address: u64,
     #[serde(borrow)]
     pub trace_type: TraceType<'a>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Eq, PartialEq, Clone, Copy)]
 pub enum TraceType<'a> {
     SyscallBegin { syscall: u64 },
     SyscallEnd { syscall: u64 },
