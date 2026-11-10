@@ -21,4 +21,4 @@ pub enum TraceType<'a> {
     Msg(&'a str),
 }
 
-pub const MAX_MSG_SIZE: usize = 1024;
+pub const MAX_MSG_SIZE: usize = 4 * 1024;

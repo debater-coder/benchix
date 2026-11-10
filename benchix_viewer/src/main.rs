@@ -1,48 +1,23 @@
+mod socket;
+/// TODO:
+/// - [ ] File save/load
+/// - [ ] Start a recording by pressing button
+/// - [ ] Search
+/// - [ ] Trace details panel (bottom)
+/// - [ ] Summary panel (right)
 use anyhow::Result;
 use benchix_tracing::TraceType::{
     FrameAllocate, FrameDeallocate, HeapAllocate, HeapDeallocate, Msg, SyscallBegin, SyscallEnd,
 };
 use benchix_tracing::{MAX_MSG_SIZE, TraceEvent};
-use cobs::CobsDecoder;
 use egui_extras::{Column, TableBuilder};
-use log::warn;
+use ouroboros::self_referencing;
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::{io::Read, os::unix::net::UnixStream};
 
-use eframe::egui::{self, Button, CentralPanel, MenuBar, Panel};
+use eframe::egui::{self, CentralPanel, MenuBar, Panel};
 
-fn collect_events<F>(events: Arc<Mutex<Vec<TraceEvent<'static>>>>, notify: F) -> Result<()>
-where
-    F: Fn(),
-{
-    let mut in_buf = [0u8; 1];
-    let mut out_buf = [0u8; MAX_MSG_SIZE];
-
-    let mut stream = UnixStream::connect("/tmp/debugcon.sock")?;
-    let mut decoder = CobsDecoder::new(&mut out_buf);
-
-    loop {
-        stream.read_exact(&mut in_buf)?;
-        match decoder.feed(in_buf[0]) {
-            Ok(None) => {}
-            Ok(Some(decoded)) => {
-                if let Ok(event) = postcard::from_bytes::<TraceEvent>(Box::leak(Box::from(
-                    &decoder.dest()[..decoded],
-                ))) {
-                    let mut lock = events.lock().unwrap();
-                    lock.push(event.clone());
-                    notify();
-                } else {
-                    warn!("Postcard decode failed")
-                }
-            }
-            Err(_) => {
-                warn!("COBS decode failed")
-            }
-        }
-    }
-}
+use crate::socket::collect_events;
 
 fn main() -> Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn")).init();
@@ -96,8 +71,16 @@ impl TraceFilters {
     }
 }
 
+#[self_referencing]
+struct TraceOwned {
+    buf: [u8; MAX_MSG_SIZE],
+    #[borrows(buf)]
+    #[covariant]
+    event: TraceEvent<'this>,
+}
+
 struct App {
-    events: Arc<Mutex<Vec<TraceEvent<'static>>>>,
+    events: Arc<Mutex<Vec<TraceOwned>>>,
     filters: TraceFilters,
 }
 
@@ -119,14 +102,26 @@ impl App {
 }
 
 impl eframe::App for App {
-    fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let events = self.events.lock().unwrap();
-        let filtered_events: Vec<_> = events.iter().filter(|t| self.filters.filter(t)).collect();
+        let filtered_events: Vec<_> = events
+            .iter()
+            .filter(|t| self.filters.filter(t.borrow_event()))
+            .collect();
 
         Panel::top("top_panel").resizable(false).show(ui, |ui| {
             MenuBar::new().ui(ui, |ui| {
                 ui.menu_button("File", |ui| {
                     if ui.button("Quit").clicked() {
+                        ui.send_viewport_cmd(egui::ViewportCommand::Close);
+                    }
+                    if ui.button("Save").clicked() {
+                        ui.send_viewport_cmd(egui::ViewportCommand::Close);
+                    }
+                    if ui.button("Load").clicked() {
+                        ui.send_viewport_cmd(egui::ViewportCommand::Close);
+                    }
+                    if ui.button("Connect to socket").clicked() {
                         ui.send_viewport_cmd(egui::ViewportCommand::Close);
                     }
                 });
@@ -142,10 +137,10 @@ impl eframe::App for App {
         CentralPanel::default().show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label("Filters");
-                ui.toggle_value(&mut self.filters.syscall_begin, "Syscall Begin");
-                ui.toggle_value(&mut self.filters.syscall_end, "Syscall End");
-                ui.toggle_value(&mut self.filters.frame_allocate, "Frame Allocate");
-                ui.toggle_value(&mut self.filters.frame_deallocate, "Frame Deallocate");
+                ui.toggle_value(&mut self.filters.syscall_begin, "Syscall begin");
+                ui.toggle_value(&mut self.filters.syscall_end, "Syscall end");
+                ui.toggle_value(&mut self.filters.frame_allocate, "Frame allocate");
+                ui.toggle_value(&mut self.filters.frame_deallocate, "Frame deallocate");
                 ui.toggle_value(&mut self.filters.heap_allocate, "Heap allocate");
                 ui.toggle_value(&mut self.filters.heap_deallocate, "Heap deallocate");
                 ui.toggle_value(&mut self.filters.msg, "Message");
@@ -170,11 +165,17 @@ impl eframe::App for App {
                         let i = row.index();
 
                         row.col(|ui| {
-                            ui.label(format!("{:x}", filtered_events[i].calling_address));
+                            ui.label(format!(
+                                "{:x}",
+                                filtered_events[i].borrow_event().calling_address
+                            ));
                         });
 
                         row.col(|ui| {
-                            ui.label(format!("{:x?}", filtered_events[i].trace_type));
+                            ui.label(format!(
+                                "{:x?}",
+                                filtered_events[i].borrow_event().trace_type
+                            ));
                         });
                     });
                 });
