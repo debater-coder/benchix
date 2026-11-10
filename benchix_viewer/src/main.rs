@@ -1,4 +1,7 @@
 use anyhow::Result;
+use benchix_tracing::TraceType::{
+    FrameAllocate, FrameDeallocate, HeapAllocate, HeapDeallocate, Msg, SyscallBegin, SyscallEnd,
+};
 use benchix_tracing::{MAX_MSG_SIZE, TraceEvent};
 use cobs::CobsDecoder;
 use egui_extras::{Column, TableBuilder};
@@ -7,7 +10,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::{io::Read, os::unix::net::UnixStream};
 
-use eframe::egui::{self, CentralPanel, MenuBar, Panel};
+use eframe::egui::{self, Button, CentralPanel, MenuBar, Panel};
 
 fn collect_events<F>(events: Arc<Mutex<Vec<TraceEvent<'static>>>>, notify: F) -> Result<()>
 where
@@ -53,8 +56,49 @@ fn main() -> Result<()> {
     Ok(())
 }
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+struct TraceFilters {
+    syscall_begin: bool,
+    syscall_end: bool,
+    frame_allocate: bool,
+    frame_deallocate: bool,
+    heap_allocate: bool,
+    heap_deallocate: bool,
+    msg: bool,
+}
+
+impl Default for TraceFilters {
+    fn default() -> Self {
+        Self {
+            syscall_begin: true,
+            syscall_end: true,
+            frame_allocate: true,
+            frame_deallocate: true,
+            heap_allocate: true,
+            heap_deallocate: true,
+            msg: true,
+        }
+    }
+}
+
+impl TraceFilters {
+    fn filter(&self, event: &TraceEvent) -> bool {
+        match event.trace_type {
+            SyscallBegin { syscall: _ } if self.syscall_begin => true,
+            SyscallEnd { syscall: _ } if self.syscall_end => true,
+            FrameAllocate(_) if self.frame_allocate => true,
+            FrameDeallocate(_) if self.frame_deallocate => true,
+            HeapAllocate { base: _, len: _ } if self.heap_allocate => true,
+            HeapDeallocate { base: _, len: _ } if self.heap_deallocate => true,
+            Msg(_) if self.msg => true,
+            _ => false,
+        }
+    }
+}
+
 struct App {
     events: Arc<Mutex<Vec<TraceEvent<'static>>>>,
+    filters: TraceFilters,
 }
 
 impl App {
@@ -69,6 +113,7 @@ impl App {
         });
         Self {
             events: Arc::clone(&events),
+            filters: Default::default(),
         }
     }
 }
@@ -76,6 +121,7 @@ impl App {
 impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         let events = self.events.lock().unwrap();
+        let filtered_events: Vec<_> = events.iter().filter(|t| self.filters.filter(t)).collect();
 
         Panel::top("top_panel").resizable(false).show(ui, |ui| {
             MenuBar::new().ui(ui, |ui| {
@@ -94,30 +140,41 @@ impl eframe::App for App {
         });
 
         CentralPanel::default().show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Filters");
+                ui.toggle_value(&mut self.filters.syscall_begin, "Syscall Begin");
+                ui.toggle_value(&mut self.filters.syscall_end, "Syscall End");
+                ui.toggle_value(&mut self.filters.frame_allocate, "Frame Allocate");
+                ui.toggle_value(&mut self.filters.frame_deallocate, "Frame Deallocate");
+                ui.toggle_value(&mut self.filters.heap_allocate, "Heap allocate");
+                ui.toggle_value(&mut self.filters.heap_deallocate, "Heap deallocate");
+                ui.toggle_value(&mut self.filters.msg, "Message");
+            });
+
             TableBuilder::new(ui)
                 .striped(true)
                 .resizable(true)
                 .stick_to_bottom(true)
-                .column(Column::auto().resizable(true))
+                .column(Column::initial(100.).resizable(true))
                 .column(Column::remainder())
                 .header(20.0, |mut header| {
                     header.col(|ui| {
-                        ui.heading("Calling address");
+                        ui.label("Calling address");
                     });
                     header.col(|ui| {
-                        ui.heading("Trace");
+                        ui.label("Trace");
                     });
                 })
                 .body(|body| {
-                    body.rows(20.0, events.len(), |mut row| {
+                    body.rows(20.0, filtered_events.len(), |mut row| {
                         let i = row.index();
 
                         row.col(|ui| {
-                            ui.label(format!("{:x}", events[i].calling_address));
+                            ui.label(format!("{:x}", filtered_events[i].calling_address));
                         });
 
                         row.col(|ui| {
-                            ui.label(format!("{:?}", events[i].trace_type));
+                            ui.label(format!("{:x?}", filtered_events[i].trace_type));
                         });
                     });
                 });

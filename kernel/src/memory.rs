@@ -1,4 +1,6 @@
 use crate::HEAP_START;
+use crate::console::trace;
+use benchix_tracing::TraceType;
 use bootloader_api::info::{MemoryRegionKind, MemoryRegions};
 use core::fmt::{Display, Formatter};
 use core::mem::zeroed;
@@ -168,6 +170,7 @@ unsafe impl FrameAllocator<Size4KiB> for PhysicalMemoryManager<'_> {
 
                 self.set_frame(frame);
 
+                trace(TraceType::FrameAllocate(frame.start_address().as_u64()));
                 return Some(frame);
             }
         }
@@ -178,7 +181,7 @@ unsafe impl FrameAllocator<Size4KiB> for PhysicalMemoryManager<'_> {
 
 impl FrameDeallocator<Size4KiB> for PhysicalMemoryManager<'_> {
     unsafe fn deallocate_frame(&mut self, frame: PhysFrame<Size4KiB>) {
-        debug_println!("frame dealloced {:?}", frame);
+        trace(TraceType::FrameDeallocate(frame.start_address().as_u64()));
         self.clear_frame(frame);
     }
 }

@@ -8,6 +8,9 @@ struct Cli {
     /// Connect to GDB
     #[arg(short, long)]
     debug: bool,
+    /// Send trace events to /tmp/debugcon.sock
+    #[arg(short, long)]
+    trace: bool,
 }
 
 fn main() {
@@ -27,10 +30,12 @@ fn main() {
         cmd.arg("-S");
     };
 
-    cmd.arg("-chardev")
-        .arg("socket,id=debugsock,path=/tmp/debugcon.sock,server=on,wait=on");
-    cmd.arg("-device")
-        .arg("isa-debugcon,iobase=0xe9,chardev=debugsock");
+    if cli.trace {
+        cmd.arg("-chardev")
+            .arg("socket,id=debugsock,path=/tmp/debugcon.sock,server=on,wait=on");
+        cmd.arg("-device")
+            .arg("isa-debugcon,iobase=0xe9,chardev=debugsock");
+    }
 
     cmd.arg("-drive")
         .arg(format!("format=raw,file={uefi_path},snapshot=on"));
