@@ -13,11 +13,10 @@ use benchix_tracing::{MAX_MSG_SIZE, TraceEvent};
 use egui_extras::{Column, TableBuilder};
 use ouroboros::self_referencing;
 use std::sync::{Arc, Mutex};
-use std::thread;
 
 use eframe::egui::{self, CentralPanel, MenuBar, Panel};
 
-use crate::socket::collect_events;
+use crate::socket::SocketSource;
 
 fn main() -> Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn")).init();
@@ -79,28 +78,39 @@ struct TraceOwned {
     event: TraceEvent<'this>,
 }
 
+/// Implementations *must* stop sending events when `Drop`ped
+trait EventSource {
+    fn collect_events(&mut self, events: Arc<Mutex<Vec<TraceOwned>>>, notify: Box<dyn Fn() + Send>);
+}
+
+#[derive(Default)]
 struct App {
     events: Arc<Mutex<Vec<TraceOwned>>>,
     filters: TraceFilters,
+    source: Option<Box<dyn EventSource>>,
 }
 
 impl App {
-    fn new(cc: &eframe::CreationContext) -> Self {
+    fn new(_cc: &eframe::CreationContext) -> Self {
         let events = Arc::new(Mutex::new(vec![]));
-        let events_for_thread = Arc::clone(&events);
-        let ctx = cc.egui_ctx.clone();
-        thread::spawn(move || {
-            collect_events(events_for_thread, move || {
-                ctx.request_repaint();
-            })
-        });
         Self {
             events: Arc::clone(&events),
             filters: Default::default(),
+            source: None,
         }
     }
 }
 
+impl App {
+    fn init_source(
+        events: Arc<Mutex<Vec<TraceOwned>>>,
+        ctx: egui::Context,
+        mut source: Box<dyn EventSource>,
+    ) -> Option<Box<dyn EventSource>> {
+        source.collect_events(events.clone(), Box::new(move || ctx.request_repaint()));
+        Some(source)
+    }
+}
 impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let events = self.events.lock().unwrap();
@@ -122,7 +132,11 @@ impl eframe::App for App {
                         ui.send_viewport_cmd(egui::ViewportCommand::Close);
                     }
                     if ui.button("Connect to socket").clicked() {
-                        ui.send_viewport_cmd(egui::ViewportCommand::Close);
+                        self.source = App::init_source(
+                            self.events.clone(),
+                            ui.clone(),
+                            Box::new(SocketSource::new()),
+                        );
                     }
                 });
             });
