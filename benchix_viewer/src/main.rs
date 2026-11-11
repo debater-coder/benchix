@@ -2,7 +2,7 @@ mod file_source;
 mod socket_source;
 /// TODO:
 /// - [x] File save/load
-/// - [ ] Start a recording by pressing button
+/// - [x] Start a recording by pressing button
 /// - [ ] Search
 /// - [ ] Trace details panel (bottom)
 /// - [ ] Summary panel (right)
@@ -20,7 +20,7 @@ use std::io::BufWriter;
 use std::mem::take;
 use std::sync::{Arc, Mutex};
 
-use eframe::egui::{self, CentralPanel, MenuBar, Panel};
+use eframe::egui::{self, CentralPanel, KeyboardShortcut, MenuBar, Modifiers, Panel};
 
 use crate::file_source::FileSource;
 use crate::socket_source::SocketSource;
@@ -156,19 +156,32 @@ impl eframe::App for App {
                 .filter(|t| self.filters.filter(t.borrow_event()))
                 .collect();
 
+            ui.input_mut(|i| {
+                if i.consume_shortcut(&KeyboardShortcut::new(Modifiers::CTRL, egui::Key::S)) {
+                    self.commands.push(Command::Save);
+                }
+                if i.consume_shortcut(&KeyboardShortcut::new(Modifiers::CTRL, egui::Key::O)) {
+                    self.commands.push(Command::SetSource(Box::new(FileSource)));
+                }
+                if i.consume_shortcut(&KeyboardShortcut::new(Modifiers::CTRL, egui::Key::L)) {
+                    self.commands
+                        .push(Command::SetSource(Box::new(SocketSource::new())));
+                }
+            });
+
             Panel::top("top_panel").resizable(false).show(ui, |ui| {
                 MenuBar::new().ui(ui, |ui| {
                     ui.menu_button("File", |ui| {
                         if ui.button("Quit").clicked() {
                             ui.send_viewport_cmd(egui::ViewportCommand::Close);
                         }
-                        if ui.button("Save").clicked() {
+                        if ui.button("Save (Ctrl+S)").clicked() {
                             self.commands.push(Command::Save);
                         }
-                        if ui.button("Load").clicked() {
+                        if ui.button("Open (Ctrl+O)").clicked() {
                             self.commands.push(Command::SetSource(Box::new(FileSource)));
                         }
-                        if ui.button("Connect to socket").clicked() {
+                        if ui.button("Connect to socket (Ctrl+L)").clicked() {
                             self.commands
                                 .push(Command::SetSource(Box::new(SocketSource::new())));
                         }
