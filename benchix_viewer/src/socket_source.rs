@@ -19,7 +19,7 @@ fn collect_events(
     notify: Box<dyn Fn() + Send>,
     running: Arc<AtomicBool>,
 ) {
-    *events.lock().unwrap() = vec![];
+    events.lock().unwrap().clear();
     let mut in_buf = [0u8; 1];
     let mut out_buf = [0u8; MAX_MSG_SIZE];
 
@@ -56,6 +56,7 @@ fn collect_events(
     }
 }
 
+#[derive(Debug)]
 pub struct SocketSource {
     running: Arc<AtomicBool>,
     handle: Option<JoinHandle<()>>,
