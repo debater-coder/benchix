@@ -11,11 +11,12 @@ use std::{
 use benchix_tracing::{MAX_MSG_SIZE, TraceEvent};
 use cobs::CobsDecoder;
 use log::warn;
+use uuid::Uuid;
 
 use crate::{EventSource, TraceOwned, TraceOwnedTryBuilder};
 
 fn collect_events(
-    events: Arc<Mutex<Vec<TraceOwned>>>,
+    events: Arc<Mutex<Vec<Arc<TraceOwned>>>>,
     notify: Box<dyn Fn() + Send>,
     running: Arc<AtomicBool>,
 ) {
@@ -35,6 +36,7 @@ fn collect_events(
                 buf[..decoded].copy_from_slice(&decoder.dest()[..decoded]);
 
                 let event_owned = TraceOwnedTryBuilder {
+                    id: Uuid::new_v4(),
                     buf,
                     event_builder: |buf| postcard::from_bytes::<TraceEvent>(buf),
                 }
@@ -43,7 +45,7 @@ fn collect_events(
                 if let Ok(event) = event_owned {
                     let mut lock = events.lock().unwrap();
 
-                    lock.push(event);
+                    lock.push(Arc::new(event));
                     notify();
                 } else {
                     warn!("Postcard decode failed")
@@ -73,7 +75,7 @@ impl SocketSource {
 impl EventSource for SocketSource {
     fn collect_events(
         &mut self,
-        events: Arc<Mutex<Vec<TraceOwned>>>,
+        events: Arc<Mutex<Vec<Arc<TraceOwned>>>>,
         notify: Box<dyn Fn() + Send>,
     ) {
         let running = Arc::clone(&self.running);

@@ -4,8 +4,8 @@ mod socket_source;
 /// - [x] File save/load
 /// - [x] Start a recording by pressing button
 /// - [ ] Search
-/// - [ ] Trace details panel (bottom)
-/// - [ ] Summary panel (right)
+/// - [x] Trace details panel (right)
+/// - [ ] Summary panel (bottom)
 use anyhow::Result;
 use benchix_tracing::TraceType::{
     FrameAllocate, FrameDeallocate, HeapAllocate, HeapDeallocate, Msg, SyscallBegin, SyscallEnd,
@@ -19,8 +19,11 @@ use std::fs::File;
 use std::io::BufWriter;
 use std::mem::take;
 use std::sync::{Arc, Mutex};
+use uuid::Uuid;
 
-use eframe::egui::{self, CentralPanel, KeyboardShortcut, MenuBar, Modifiers, Panel};
+use eframe::egui::{
+    self, CentralPanel, KeyboardShortcut, MenuBar, Modifiers, Panel, ScrollArea, Sense,
+};
 
 use crate::file_source::FileSource;
 use crate::socket_source::SocketSource;
@@ -79,15 +82,28 @@ impl TraceFilters {
 
 #[self_referencing]
 struct TraceOwned {
+    id: Uuid,
     buf: [u8; MAX_MSG_SIZE],
     #[borrows(buf)]
     #[covariant]
     event: TraceEvent<'this>,
 }
 
+impl Eq for TraceOwned {}
+
+impl PartialEq for TraceOwned {
+    fn eq(&self, other: &Self) -> bool {
+        self.borrow_id() == other.borrow_id()
+    }
+}
+
 /// Implementations *must* stop sending events when `Drop`ped
 trait EventSource: Debug {
-    fn collect_events(&mut self, events: Arc<Mutex<Vec<TraceOwned>>>, notify: Box<dyn Fn() + Send>);
+    fn collect_events(
+        &mut self,
+        events: Arc<Mutex<Vec<Arc<TraceOwned>>>>,
+        notify: Box<dyn Fn() + Send>,
+    );
 }
 
 #[derive(Debug)]
@@ -99,12 +115,15 @@ enum Command {
 #[derive(Default)]
 struct App {
     /// Trace events from kernel
-    events: Arc<Mutex<Vec<TraceOwned>>>,
+    events: Arc<Mutex<Vec<Arc<TraceOwned>>>>,
     /// Filter displayed events
     filters: TraceFilters,
     source: Option<Box<dyn EventSource>>,
     /// Commands to perform internal operations in the app
     commands: Vec<Command>,
+    summary_open: bool,
+    details_open: bool,
+    selected_event: Option<Arc<TraceOwned>>,
 }
 
 impl App {
@@ -115,6 +134,9 @@ impl App {
             filters: Default::default(),
             source: None,
             commands: vec![],
+            summary_open: true,
+            details_open: true,
+            selected_event: None,
         }
     }
 }
@@ -195,6 +217,39 @@ impl eframe::App for App {
                 });
             });
 
+            Panel::bottom("summary").resizable(true).show_collapsible(
+                ui,
+                &mut self.summary_open,
+                |ui| {
+                    ScrollArea::vertical().show(ui, |ui| {
+                        ui.heading("Summary panel");
+                        ui.separator();
+                    });
+                    ui.allocate_space(ui.available_size());
+                },
+            );
+
+            Panel::right("trace_details")
+                .resizable(true)
+                .show_collapsible(ui, &mut self.details_open, |ui| {
+                    ScrollArea::both().show(ui, |ui| {
+                        ui.heading("Trace details panel");
+                        ui.separator();
+                        match &self.selected_event {
+                            Some(ev) => {
+                                ui.label(format!("{:x?}", ev.borrow_event()));
+                                if ui.button("Clear selection").clicked() {
+                                    self.selected_event = None;
+                                }
+                            }
+                            None => {
+                                ui.label("No event selected");
+                            }
+                        }
+                    });
+                    ui.allocate_space(ui.available_size());
+                });
+
             CentralPanel::default().show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Filters");
@@ -211,8 +266,9 @@ impl eframe::App for App {
                     .striped(true)
                     .resizable(true)
                     .stick_to_bottom(true)
-                    .column(Column::initial(100.).resizable(true))
+                    .column(Column::initial(120.).resizable(true))
                     .column(Column::remainder())
+                    .sense(Sense::click())
                     .header(20.0, |mut header| {
                         header.col(|ui| {
                             ui.label("Calling address");
@@ -224,6 +280,10 @@ impl eframe::App for App {
                     .body(|body| {
                         body.rows(20.0, filtered_events.len(), |mut row| {
                             let i = row.index();
+
+                            row.set_selected(
+                                self.selected_event == Some(Arc::clone(filtered_events[i])),
+                            );
 
                             row.col(|ui| {
                                 ui.label(format!(
@@ -238,6 +298,10 @@ impl eframe::App for App {
                                     filtered_events[i].borrow_event().trace_type
                                 ));
                             });
+
+                            if row.response().clicked() {
+                                self.selected_event = Some(Arc::clone(filtered_events[i]));
+                            }
                         });
                     });
             });

@@ -4,10 +4,11 @@ use anyhow::{Result, anyhow};
 use benchix_tracing::{MAX_MSG_SIZE, TraceEvent};
 use log::error;
 use rfd::FileDialog;
+use uuid::Uuid;
 
 use crate::{EventSource, TraceOwnedBuilder};
 
-fn collect_events() -> Result<Vec<crate::TraceOwned>> {
+fn collect_events() -> Result<Vec<Arc<crate::TraceOwned>>> {
     let path = FileDialog::new()
         .pick_file()
         .ok_or(anyhow!("Failed to pick file"))?;
@@ -17,11 +18,14 @@ fn collect_events() -> Result<Vec<crate::TraceOwned>> {
     Ok(events
         .iter()
         .map(|event| {
-            TraceOwnedBuilder {
-                buf: [0u8; MAX_MSG_SIZE],
-                event_builder: |_buf| *event,
-            }
-            .build()
+            Arc::new(
+                TraceOwnedBuilder {
+                    id: Uuid::new_v4(),
+                    buf: [0u8; MAX_MSG_SIZE],
+                    event_builder: |_buf| *event,
+                }
+                .build(),
+            )
         })
         .collect())
 }
@@ -32,7 +36,7 @@ pub struct FileSource;
 impl EventSource for FileSource {
     fn collect_events(
         &mut self,
-        events: Arc<Mutex<Vec<crate::TraceOwned>>>,
+        events: Arc<Mutex<Vec<Arc<crate::TraceOwned>>>>,
         notify: Box<dyn Fn() + Send>,
     ) {
         match collect_events() {
