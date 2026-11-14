@@ -4,7 +4,8 @@
     clippy::cast_possible_truncation,
     clippy::cast_sign_loss,
     clippy::uninlined_format_args,
-    clippy::match_wildcard_for_single_variants
+    clippy::match_wildcard_for_single_variants,
+    internal_features
 )]
 #![feature(abi_x86_interrupt, iterator_try_reduce, core_intrinsics)]
 #![no_std]

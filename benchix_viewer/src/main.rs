@@ -8,7 +8,8 @@ mod socket_source;
 /// - [ ] Summary panel (bottom)
 use anyhow::Result;
 use benchix_tracing::TraceType::{
-    FrameAllocate, FrameDeallocate, HeapAllocate, HeapDeallocate, Msg, SyscallBegin, SyscallEnd,
+    FrameAllocate, FrameDeallocate, HeapAllocate, HeapDeallocate, MarkPhysRange, MarkUnusableRange,
+    Msg, SyscallBegin, SyscallEnd,
 };
 use benchix_tracing::{MAX_MSG_SIZE, TraceEvent};
 use egui_extras::{Column, TableBuilder};
@@ -46,6 +47,8 @@ struct TraceFilters {
     syscall_end: bool,
     frame_allocate: bool,
     frame_deallocate: bool,
+    mark_phys_range: bool,
+    mark_unusable_range: bool,
     heap_allocate: bool,
     heap_deallocate: bool,
     msg: bool,
@@ -58,6 +61,8 @@ impl Default for TraceFilters {
             syscall_end: true,
             frame_allocate: true,
             frame_deallocate: true,
+            mark_phys_range: true,
+            mark_unusable_range: true,
             heap_allocate: true,
             heap_deallocate: true,
             msg: true,
@@ -72,6 +77,8 @@ impl TraceFilters {
             SyscallEnd { syscall: _ } if self.syscall_end => true,
             FrameAllocate(_) if self.frame_allocate => true,
             FrameDeallocate(_) if self.frame_deallocate => true,
+            MarkPhysRange(_, _) if self.mark_phys_range => true,
+            MarkUnusableRange(_, _) if self.mark_unusable_range => true,
             HeapAllocate { base: _, len: _ } if self.heap_allocate => true,
             HeapDeallocate { base: _, len: _ } if self.heap_deallocate => true,
             Msg(_) if self.msg => true,
@@ -257,6 +264,14 @@ impl eframe::App for App {
                     ui.toggle_value(&mut self.filters.syscall_end, "Syscall end");
                     ui.toggle_value(&mut self.filters.frame_allocate, "Frame allocate");
                     ui.toggle_value(&mut self.filters.frame_deallocate, "Frame deallocate");
+                    ui.toggle_value(
+                        &mut self.filters.mark_phys_range,
+                        "Mark physical memory range",
+                    );
+                    ui.toggle_value(
+                        &mut self.filters.mark_unusable_range,
+                        "Mark unusable frame ranges",
+                    );
                     ui.toggle_value(&mut self.filters.heap_allocate, "Heap allocate");
                     ui.toggle_value(&mut self.filters.heap_deallocate, "Heap deallocate");
                     ui.toggle_value(&mut self.filters.msg, "Message");

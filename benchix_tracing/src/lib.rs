@@ -15,6 +15,8 @@ pub enum TraceType<'a> {
     SyscallBegin { syscall: u64 },
     SyscallEnd { syscall: u64 },
     FrameAllocate(u64),
+    MarkPhysRange(u64, u64),
+    MarkUnusableRange(u64, u64),
     FrameDeallocate(u64),
     HeapAllocate { base: u64, len: u64 },
     HeapDeallocate { base: u64, len: u64 },

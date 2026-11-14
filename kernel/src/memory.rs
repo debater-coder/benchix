@@ -133,6 +133,11 @@ impl PhysicalMemoryManager<'_> {
             physical_offset,
         };
 
+        trace(TraceType::MarkPhysRange(
+            bitmap_region.start,
+            bitmap_region.end,
+        ));
+
         let bitmap_range = PhysFrame::range_inclusive(
             PhysFrame::containing_address(PhysAddr::new(bitmap_region.start)),
             PhysFrame::containing_address(PhysAddr::new(bitmap_region.end - 1)), // End address is exclusive
@@ -146,6 +151,7 @@ impl PhysicalMemoryManager<'_> {
             .iter()
             .filter(|region| region.kind != MemoryRegionKind::Usable)
         {
+            trace(TraceType::MarkUnusableRange(region.start, region.end));
             let frame_range = PhysFrame::range_inclusive(
                 PhysFrame::containing_address(PhysAddr::new(region.start)),
                 PhysFrame::containing_address(PhysAddr::new(region.end - 1)), // End address is exclusive
