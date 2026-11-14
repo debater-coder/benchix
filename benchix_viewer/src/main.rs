@@ -293,10 +293,13 @@ impl eframe::App for App {
                             });
 
                             row.col(|ui| {
-                                ui.label(format!(
-                                    "{:x?}",
-                                    filtered_events[i].borrow_event().trace_type
-                                ));
+                                ui.add(
+                                    egui::Label::new(format!(
+                                        "{:x?}",
+                                        filtered_events[i].borrow_event().trace_type
+                                    ))
+                                    .truncate(),
+                                );
                             });
 
                             if row.response().clicked() {

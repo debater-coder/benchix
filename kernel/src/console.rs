@@ -1,12 +1,9 @@
 use crate::debug_println;
 use alloc::vec;
 use alloc::vec::Vec;
-use benchix_tracing::{
-    MAX_MSG_SIZE, TraceEvent,
-    TraceType::{self, Msg},
-};
+use benchix_tracing::{MAX_MSG_SIZE, TraceEvent, TraceType};
 use bootloader_api::info::{FrameBuffer, FrameBufferInfo};
-use core::fmt;
+use core::{fmt, str::Utf8Error};
 use noto_sans_mono_bitmap::{FontWeight, RasterHeight, get_raster, get_raster_width};
 use postcard::to_slice_cobs;
 use x86_64::{
@@ -216,15 +213,26 @@ macro_rules! early_println {
     ($console:expr, $($arg:tt)*) => ($crate::early_print!($console, "{}\n", format_args!($($arg)*)));
 }
 
-/// This is an example of how not to write hardware interfaces
-pub struct DebugCons;
+/// Writes a message to debug port (using the 0xe9 '-debugcon' protocol)
+pub struct DebugCons {
+    cursor: usize,
+    buf: [u8; 3072],
+}
 
-#[inline(never)]
-pub fn trace(trace_type: TraceType) {
+impl Default for DebugCons {
+    fn default() -> Self {
+        Self {
+            cursor: Default::default(),
+            buf: [0u8; 3072],
+        }
+    }
+}
+
+pub fn trace_inner(trace_type: TraceType, calling_address: u64) {
     let mut out_buf = [0u8; MAX_MSG_SIZE];
     match to_slice_cobs(
         &TraceEvent {
-            calling_address: core::intrinsics::return_address() as u64,
+            calling_address,
             trace_type,
         },
         &mut out_buf,
@@ -242,9 +250,31 @@ pub fn trace(trace_type: TraceType) {
     }
 }
 
+#[inline(never)]
+pub fn trace(trace_type: TraceType) {
+    trace_inner(trace_type, core::intrinsics::return_address() as u64);
+}
+
 impl fmt::Write for DebugCons {
     fn write_str(&mut self, s: &str) -> fmt::Result {
-        trace(Msg(s));
+        if self.cursor + s.len() > self.buf.len() {
+            return Err(fmt::Error);
+        }
+
+        self.buf[self.cursor..self.cursor + s.len()].copy_from_slice(s.as_bytes());
+        self.cursor += s.len();
+        Ok(())
+    }
+}
+
+impl DebugCons {
+    #[inline(never)]
+    pub fn flush(&mut self) -> Result<(), Utf8Error> {
+        trace_inner(
+            TraceType::Msg(str::from_utf8(&self.buf[..self.cursor])?),
+            core::intrinsics::return_address() as u64,
+        );
+
         Ok(())
     }
 }
@@ -252,7 +282,9 @@ impl fmt::Write for DebugCons {
 #[macro_export]
 macro_rules! debug_print {
     ($($arg:tt)*) => {
-        let _ = <$crate::console::DebugCons as core::fmt::Write>::write_fmt(&mut $crate::console::DebugCons {}, format_args!($($arg)*));
+        let mut dbg_port = Default::default();
+        let _ = <$crate::console::DebugCons as core::fmt::Write>::write_fmt(&mut dbg_port, format_args!($($arg)*));
+        let _ = dbg_port.flush();
     };
 }
 
