@@ -207,6 +207,7 @@ impl eframe::App for App {
                     );
                     ui.toggle_value(&mut self.filters.heap_allocate, "Heap allocate");
                     ui.toggle_value(&mut self.filters.heap_deallocate, "Heap deallocate");
+                    ui.toggle_value(&mut self.filters.context_switch, "Context switch");
                     ui.toggle_value(&mut self.filters.msg, "Message");
                 });
 

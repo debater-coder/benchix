@@ -4,6 +4,16 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq, Clone, Copy)]
+pub struct ThreadInfo<'a> {
+    pub kstack: u64,
+    pub process: Option<u32>,
+    pub tid: u32,
+    pub name: Option<&'a str>,
+    pub cr3_frame: Option<u64>,
+    pub fs_base: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Eq, PartialEq, Clone, Copy)]
 pub struct TraceEvent<'a> {
     pub calling_address: u64,
     #[serde(borrow)]
@@ -22,6 +32,7 @@ pub enum TraceType<'a> {
     FrameDeallocate(u64),
     HeapAllocate { base: u64, len: u64 },
     HeapDeallocate { base: u64, len: u64 },
+    ContextSwitch(Option<ThreadInfo<'a>>),
     Msg(&'a str),
 }
 

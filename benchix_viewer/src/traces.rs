@@ -26,6 +26,7 @@ pub struct TraceFilters {
     pub mark_unusable_range: bool,
     pub heap_allocate: bool,
     pub heap_deallocate: bool,
+    pub context_switch: bool,
     pub msg: bool,
 }
 
@@ -40,6 +41,7 @@ impl Default for TraceFilters {
             mark_unusable_range: true,
             heap_allocate: true,
             heap_deallocate: true,
+            context_switch: true,
             msg: true,
         }
     }
@@ -56,6 +58,7 @@ impl TraceFilters {
             TraceType::MarkUnusableRange(_, _) if self.mark_unusable_range => true,
             TraceType::HeapAllocate { base: _, len: _ } if self.heap_allocate => true,
             TraceType::HeapDeallocate { base: _, len: _ } if self.heap_deallocate => true,
+            TraceType::ContextSwitch(_) if self.context_switch => true,
             TraceType::Msg(_) if self.msg => true,
             _ => false,
         }

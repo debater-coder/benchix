@@ -6,6 +6,7 @@ use core::{
 use alloc::{
     borrow::ToOwned, collections::vec_deque::VecDeque, string::String, sync::Arc, vec, vec::Vec,
 };
+use benchix_tracing::{ThreadInfo, TraceType};
 use conquer_once::spin::OnceCell;
 use spin::Mutex;
 use x86_64::{
@@ -15,7 +16,7 @@ use x86_64::{
     structures::paging::PhysFrame,
 };
 
-use crate::cpu::PerCpu;
+use crate::{console::trace, cpu::PerCpu};
 
 /// DANGER LOCK: DISABLE INTERRUPTS BEFORE USE!!!
 static READY: OnceCell<Mutex<VecDeque<Arc<Mutex<Thread>>>>> = OnceCell::uninit();
@@ -248,8 +249,19 @@ pub fn yield_execution() {
             Some(thread) => {
                 // If the next thread and the current thread is the same, we will deadlock
                 if Arc::ptr_eq(&thread.clone(), &next_thread) {
-                    debug_print!(".");
+                    trace(TraceType::ContextSwitch(None));
                     return;
+                }
+                {
+                    let thread = thread.lock();
+                    trace(TraceType::ContextSwitch(Some(ThreadInfo {
+                        cr3_frame: thread.cr3_frame.map(|c| c.start_address().as_u64()),
+                        fs_base: thread.fs_base.as_u64(),
+                        kstack: thread.kstack.as_ptr() as u64,
+                        name: thread.name.as_deref(),
+                        process: thread.process,
+                        tid: thread.tid,
+                    })));
                 }
                 debug_println!("Switching from {:?} to {:?}", thread, next_thread);
                 &mut thread.lock().context
