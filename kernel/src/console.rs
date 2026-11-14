@@ -3,7 +3,7 @@ use alloc::vec;
 use alloc::vec::Vec;
 use benchix_tracing::{MAX_MSG_SIZE, TraceEvent, TraceType};
 use bootloader_api::info::{FrameBuffer, FrameBufferInfo};
-use core::{fmt, str::Utf8Error};
+use core::{arch::x86_64::_rdtsc, fmt, str::Utf8Error};
 use noto_sans_mono_bitmap::{FontWeight, RasterHeight, get_raster, get_raster_width};
 use postcard::to_slice_cobs;
 use x86_64::{
@@ -234,6 +234,7 @@ pub fn trace_inner(trace_type: TraceType, calling_address: u64) {
         &TraceEvent {
             calling_address,
             trace_type,
+            timestamp: unsafe { _rdtsc() },
         },
         &mut out_buf,
     ) {

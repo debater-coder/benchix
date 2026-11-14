@@ -13,7 +13,8 @@ use cobs::CobsDecoder;
 use log::warn;
 use uuid::Uuid;
 
-use crate::{EventSource, TraceOwned, TraceOwnedTryBuilder};
+use crate::EventSource;
+use crate::traces::{TraceOwned, TraceOwnedTryBuilder};
 
 fn collect_events(
     events: Arc<Mutex<Vec<Arc<TraceOwned>>>>,

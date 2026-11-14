@@ -8,6 +8,8 @@ pub struct TraceEvent<'a> {
     pub calling_address: u64,
     #[serde(borrow)]
     pub trace_type: TraceType<'a>,
+    /// From `rdtsc`. Implementations need not insert memory barriers before this, it is only an approximate measure
+    pub timestamp: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq, Clone, Copy)]

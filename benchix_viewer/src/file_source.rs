@@ -6,7 +6,8 @@ use log::error;
 use rfd::FileDialog;
 use uuid::Uuid;
 
-use crate::{EventSource, TraceOwnedBuilder};
+use crate::EventSource;
+use crate::traces::TraceOwnedBuilder;
 
 fn collect_events() -> Result<Vec<Arc<crate::TraceOwned>>> {
     let path = FileDialog::new()

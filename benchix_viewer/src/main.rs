@@ -1,5 +1,6 @@
 mod file_source;
 mod socket_source;
+mod traces;
 /// TODO:
 /// - [x] File save/load
 /// - [x] Start a recording by pressing button
@@ -7,20 +8,13 @@ mod socket_source;
 /// - [x] Trace details panel (right)
 /// - [ ] Summary panel (bottom)
 use anyhow::Result;
-use benchix_tracing::TraceType::{
-    FrameAllocate, FrameDeallocate, HeapAllocate, HeapDeallocate, MarkPhysRange, MarkUnusableRange,
-    Msg, SyscallBegin, SyscallEnd,
-};
-use benchix_tracing::{MAX_MSG_SIZE, TraceEvent};
 use egui_extras::{Column, TableBuilder};
-use ouroboros::self_referencing;
 use rfd::FileDialog;
 use std::fmt::Debug;
 use std::fs::File;
 use std::io::BufWriter;
 use std::mem::take;
 use std::sync::{Arc, Mutex};
-use uuid::Uuid;
 
 use eframe::egui::{
     self, CentralPanel, KeyboardShortcut, MenuBar, Modifiers, Panel, ScrollArea, Sense,
@@ -28,6 +22,7 @@ use eframe::egui::{
 
 use crate::file_source::FileSource;
 use crate::socket_source::SocketSource;
+use crate::traces::{TraceFilters, TraceOwned, Traces};
 
 fn main() -> Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn")).init();
@@ -39,69 +34,6 @@ fn main() -> Result<()> {
     )?;
 
     Ok(())
-}
-
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-struct TraceFilters {
-    syscall_begin: bool,
-    syscall_end: bool,
-    frame_allocate: bool,
-    frame_deallocate: bool,
-    mark_phys_range: bool,
-    mark_unusable_range: bool,
-    heap_allocate: bool,
-    heap_deallocate: bool,
-    msg: bool,
-}
-
-impl Default for TraceFilters {
-    fn default() -> Self {
-        Self {
-            syscall_begin: true,
-            syscall_end: true,
-            frame_allocate: true,
-            frame_deallocate: true,
-            mark_phys_range: true,
-            mark_unusable_range: true,
-            heap_allocate: true,
-            heap_deallocate: true,
-            msg: true,
-        }
-    }
-}
-
-impl TraceFilters {
-    fn filter(&self, event: &TraceEvent) -> bool {
-        match event.trace_type {
-            SyscallBegin { syscall: _ } if self.syscall_begin => true,
-            SyscallEnd { syscall: _ } if self.syscall_end => true,
-            FrameAllocate(_) if self.frame_allocate => true,
-            FrameDeallocate(_) if self.frame_deallocate => true,
-            MarkPhysRange(_, _) if self.mark_phys_range => true,
-            MarkUnusableRange(_, _) if self.mark_unusable_range => true,
-            HeapAllocate { base: _, len: _ } if self.heap_allocate => true,
-            HeapDeallocate { base: _, len: _ } if self.heap_deallocate => true,
-            Msg(_) if self.msg => true,
-            _ => false,
-        }
-    }
-}
-
-#[self_referencing]
-struct TraceOwned {
-    id: Uuid,
-    buf: [u8; MAX_MSG_SIZE],
-    #[borrows(buf)]
-    #[covariant]
-    event: TraceEvent<'this>,
-}
-
-impl Eq for TraceOwned {}
-
-impl PartialEq for TraceOwned {
-    fn eq(&self, other: &Self) -> bool {
-        self.borrow_id() == other.borrow_id()
-    }
 }
 
 /// Implementations *must* stop sending events when `Drop`ped
@@ -119,10 +51,9 @@ enum Command {
     Save,
 }
 
-#[derive(Default)]
 struct App {
     /// Trace events from kernel
-    events: Arc<Mutex<Vec<Arc<TraceOwned>>>>,
+    traces: Traces,
     /// Filter displayed events
     filters: TraceFilters,
     source: Option<Box<dyn EventSource>>,
@@ -135,9 +66,8 @@ struct App {
 
 impl App {
     fn new(_cc: &eframe::CreationContext) -> Self {
-        let events = Arc::new(Mutex::new(vec![]));
         Self {
-            events: Arc::clone(&events),
+            traces: Traces::new(),
             filters: Default::default(),
             source: None,
             commands: vec![],
@@ -150,12 +80,15 @@ impl App {
 
 impl App {
     fn set_source(&mut self, ctx: egui::Context, mut source: Box<dyn EventSource>) {
-        source.collect_events(self.events.clone(), Box::new(move || ctx.request_repaint()));
+        source.collect_events(
+            self.traces.events.clone(),
+            Box::new(move || ctx.request_repaint()),
+        );
         self.source = Some(source);
     }
 
     fn save(&self) {
-        let events = self.events.lock().unwrap();
+        let events = self.traces.events.lock().unwrap();
         let items: Vec<_> = events.iter().map(|event| event.borrow_event()).collect();
 
         if let Some(path) = FileDialog::new().save_file() {
@@ -179,7 +112,7 @@ impl App {
 impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         {
-            let events = self.events.lock().unwrap();
+            let events = self.traces.events.lock().unwrap();
             let filtered_events: Vec<_> = events
                 .iter()
                 .filter(|t| self.filters.filter(t.borrow_event()))
@@ -282,11 +215,15 @@ impl eframe::App for App {
                     .resizable(true)
                     .stick_to_bottom(true)
                     .column(Column::initial(120.).resizable(true))
+                    .column(Column::initial(120.).resizable(true))
                     .column(Column::remainder())
                     .sense(Sense::click())
                     .header(20.0, |mut header| {
                         header.col(|ui| {
                             ui.label("Calling address");
+                        });
+                        header.col(|ui| {
+                            ui.label("Timestamp");
                         });
                         header.col(|ui| {
                             ui.label("Trace");
@@ -306,6 +243,12 @@ impl eframe::App for App {
                                     filtered_events[i].borrow_event().calling_address
                                 ));
                             });
+                            row.col(|ui| {
+                                ui.label(format!(
+                                    "{}",
+                                    filtered_events[i].borrow_event().timestamp
+                                ));
+                            });
 
                             row.col(|ui| {
                                 ui.add(
@@ -313,7 +256,8 @@ impl eframe::App for App {
                                         "{:x?}",
                                         filtered_events[i].borrow_event().trace_type
                                     ))
-                                    .truncate(),
+                                    .truncate()
+                                    .selectable(false),
                                 );
                             });
 
